@@ -41,6 +41,7 @@ const PRECACHE=/* PRECACHE_START */[
   "character-roles.css",
   "character-vfx.js",
   "daily-missions.js",
+  "hero-collection.js",
   "engine.js",
   "fit-screen.css",
   "icons/apple-touch-icon.png",

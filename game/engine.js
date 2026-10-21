@@ -22,7 +22,8 @@
  *   victoryActors/victorySnapshot expose that trip; combat statistics freeze.
  *   .pause() resumes the exact running/advancing phase that it interrupted.
  *   .setRoster(indices) selects a nonempty, unique list of UNITS indices only
- *   in ready/won/lost; selectedRoster defaults to all and survives replay.
+ *   in ready/won/lost (at most CONFIG.maxTeam); selectedRoster defaults to the
+ *   original five and survives replay.
  *   Manual and Auto summon only members of that roster, at unchanged costs.
  *   Units expose range/attackRange, stopDistance, targetId/targetX, movement and
  *   attackLock. Feet move at the real speed, re-form behind shorter-reach friends,
@@ -66,7 +67,7 @@
     homeHP: 360, enemyHP: 500, duration: 75,
     entryCost: 3, energyMax: 30, refillMs: 5 * 60 * 1000,
     fluxInitial: 40, fluxMax: 100, fluxRegen: 9,
-    maxAllies: 12, maxEnemies: 14,
+    maxAllies: 12, maxEnemies: 14, maxTeam: 5, baseHeroes: 5,
     fixedStep: 1 / 60, maxFrameDt: 0.5,
     enemyFirstSpawn: 2, enemySpawnInterval: 5,
     enemyInitialHP: 72, enemyHPGrowth: 5,
@@ -151,7 +152,13 @@
       hp: 120, damage: 22, interval: 1.7, speed: 34, range: 250, stopDistance: 240,
       cooldown: 10, style: 'burst', color: '#c7a4f5', splash: 85}
   ];
-  UNITS.forEach((unit, index) => Object.assign(unit, CLASSES[index]));
+  // Sticker heroes (2.0) append after the original five. Indices 0-4 never move:
+  // the schema 2 save roster and meta-v1 levels only ever describe those five.
+  // Each sticker hero names its classId; art and unlocks live outside the engine.
+  const STICKER_UNITS = [];
+  UNITS.push(...STICKER_UNITS);
+  UNITS.forEach((unit, index) => Object.assign(unit,
+    CLASSES.find(c => c.classId === unit.classId) || CLASSES[index], {sticker: index >= 5}));
 
   // Sample enemy balance: wave base HP/damage still escalate via CONFIG.
   // Role behavior is shared with heroes; no new skills or required team roles.
@@ -290,7 +297,7 @@
       this.progress.rescued = Boolean(this.progress.rescued);
       this.mode = 'manual';
       this.state = 'ready';
-      this.selectedRoster = UNITS.map((unit, index) => index);
+      this.selectedRoster = UNITS.slice(0, CONFIG.baseHeroes).map((unit, index) => index);
       this.runId = 0;
       this.lastError = '';
       this.stageIndex = 0;
@@ -404,7 +411,7 @@
 
     setRoster(indices) {
       if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
-      if (!Array.isArray(indices) || indices.length === 0 ||
+      if (!Array.isArray(indices) || indices.length === 0 || indices.length > CONFIG.maxTeam ||
           Array.from(indices).some(index => !Number.isInteger(index) || !UNITS[index]) ||
           new Set(indices).size !== indices.length) return false;
       this.selectedRoster = indices.slice();
