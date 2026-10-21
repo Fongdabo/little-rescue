@@ -1,4 +1,4 @@
-/* 1.13: real-money shop tab (gem packs), backed by functions/api/shop/[[path]].js on the same origin.
+/* 1.14: real-money shop tab (gem packs), backed by functions/api/shop/[[path]].js on the same origin.
    Gems are kept on the server only (the player's cloud account wallet), never in the local save, so buying
    needs a cloud account (☁️). Paying happens on Stripe's hosted page (card or PromptPay QR); Stripe tells the
    server, which credits the gems; the game only shows the result. The tab stays a "เร็วๆ นี้" placeholder when the
