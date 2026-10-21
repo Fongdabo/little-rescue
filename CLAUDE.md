@@ -37,6 +37,9 @@ The owner writes Thai; reply in Thai.
   Gift coins go to the server wallet in one batch with the claim row (ledger ref `gift:<id>:<player>`); cookies are paid
   locally via `little-rescue-gifts-v1` pending → savedAction. Event coin bonus is added by app.js on claim and by play.js
   on the `win` op (same rounding). `game/live.js` mounts before app.js; the lobby 🎁 tab opens it.
+- World map (1.17): `STAGES[].chapter` + `CHAPTERS` (engine.js), map art `MAP_ART` (app.js). Pre-1.17 builds clamp meta
+  `cleared`/`stage` to 5 stages and may write that back, so app.js mirrors them in `little-rescue-world-v1` (`{v,cleared,stage}`)
+  and `readMeta` takes the larger `cleared`. A boss may set `enemy` (ENEMIES index), `calls` (seconds between extra enemies), `aura`.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).

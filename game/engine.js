@@ -220,8 +220,30 @@
       enemyHP: 800, duration: 105, spawnInterval: 4.4, hpMul: 1.24, damageMul: 1.18, rewardCoins: 75},
     {id: 'stage-05', number: 5, name: 'หอ Mushroom ใต้แสงดาว', grade: 'night',
       enemyHP: 900, duration: 115, spawnInterval: 4.2, hpMul: 1.32, damageMul: 1.24, rewardCoins: 90,
-      boss: {at: 60, baseRatio: 0.6, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 2, scale: 1.6, speedMul: 0.7}}
+      boss: {at: 60, baseRatio: 0.6, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 2, scale: 1.6, speedMul: 0.7}},
+    // 1.17 chapter 2 on the world map. A boss may use another enemy class (enemy = ENEMIES index, default 0),
+    // and calls = seconds between the extra enemies it calls while alive. aura only colours it on screen.
+    {id: 'stage-06', number: 6, chapter: 2, name: 'เชิงเขาหมอกขาว', grade: 'mist',
+      enemyHP: 1000, duration: 120, spawnInterval: 4.1, hpMul: 1.45, damageMul: 1.32, rewardCoins: 105},
+    {id: 'stage-07', number: 7, chapter: 2, name: 'ลานสนหิมะ', grade: 'snow',
+      enemyHP: 1100, duration: 125, spawnInterval: 4, hpMul: 1.56, damageMul: 1.4, rewardCoins: 120,
+      boss: {at: 55, baseRatio: 0.7, name: 'นักธนูเห็ดหิมะ', enemy: 2, hpMul: 3, damageMul: 1.7, scale: 1.4, speedMul: 0.8,
+        aura: '#bfe6ff'}},
+    {id: 'stage-08', number: 8, chapter: 2, name: 'ทะเลสาบน้ำแข็ง', grade: 'ice',
+      enemyHP: 1200, duration: 130, spawnInterval: 3.9, hpMul: 1.68, damageMul: 1.48, rewardCoins: 135},
+    {id: 'stage-09', number: 9, chapter: 2, name: 'ถ้ำคริสตัล', grade: 'crystal',
+      enemyHP: 1300, duration: 135, spawnInterval: 3.8, hpMul: 1.74, damageMul: 1.52, rewardCoins: 150},
+    {id: 'stage-10', number: 10, chapter: 2, name: 'ปราสาทแสงเหนือ', grade: 'aurora',
+      enemyHP: 1500, duration: 145, spawnInterval: 3.7, hpMul: 1.74, damageMul: 1.5, rewardCoins: 180,
+      boss: {at: 65, baseRatio: 0.6, name: 'ราชินีเห็ดน้ำแข็ง', enemy: 4, hpMul: 5, damageMul: 2, scale: 1.7, speedMul: 0.7,
+        calls: 9, aura: '#c9b6ff'}}
   ];
+  // 1.17 world map chapters; a stage without chapter is in chapter 1.
+  const CHAPTERS = [
+    {number: 1, name: 'ทุ่งหญ้าสายลม', icon: '🌼', text: 'ทุ่งดอกไม้ ลำธาร และหอ Mushroom'},
+    {number: 2, name: 'หุบเขาหิมะ', icon: '❄️', text: 'ภูเขาหิมะ ทะเลสาบน้ำแข็ง และปราสาทแสงเหนือ'}
+  ];
+  STAGES.forEach(stage => { stage.chapter = stage.chapter || 1; });
   // 1.9 battle items, like LINE Rangers' pre-battle items: free, each usable once per battle, chosen before it.
   const ITEMS = [
     {id: 'meteor', name: 'ฝนลูกสน', icon: '☄️', text: 'ลูกสนตกใส่ศัตรู 3 ตัวหน้าสุด แรง 120'},
@@ -424,6 +446,7 @@
       this._serial = 0;
       this._nextEnemy = CONFIG.enemyFirstSpawn;
       this._nextAuto = 0;
+      this._nextBossCall = Infinity;
       this._autoIndex = 0;
       this._travelTick = 0;
       this._resumeState = 'running';
@@ -657,7 +680,7 @@
     _spawnEnemy(boss) {
       if (!boss && this.enemies.length >= CONFIG.maxEnemies) return;
       const wave = this.metrics.spawnedEnemies;
-      const index = boss ? 0 : wave % ENEMIES.length, spec = ENEMIES[index];
+      const index = boss ? boss.enemy || 0 : wave % ENEMIES.length, spec = ENEMIES[index];
       const rage = this.rage;
       const hp = (CONFIG.enemyInitialHP + wave * CONFIG.enemyHPGrowth) * spec.hpFactor * this.stage.hpMul *
         (boss ? boss.hpMul : 1) * rage;
@@ -677,7 +700,8 @@
         attackFlash: 0, blockFlash: 0, hitFlash: 0, blockedDamage: 0,
         facing: -1, asset: spec.asset};
       if (boss) {
-        Object.assign(enemy, {id: 'boss-' + this.runId, boss: true, scale: boss.scale});
+        Object.assign(enemy, {id: 'boss-' + this.runId, boss: true, scale: boss.scale, aura: boss.aura || null});
+        this._nextBossCall = this.time + (boss.calls || 0);
         this.enemies.push(enemy);
         this.bossSpawned = true;
         this._event('boss-arrive', enemy, {name: boss.name});
@@ -957,6 +981,13 @@
       // The boss guards the enemy base: it comes out when the base drops to boss.baseRatio, or at boss.at seconds.
       if (boss && !this.bossSpawned && (this.time + 1e-9 >= boss.at ||
           this.enemyHP <= this.enemyMaxHP * boss.baseRatio)) this._spawnEnemy(boss);
+      // 1.17: a calling boss brings one more enemy every boss.calls seconds while it is alive.
+      if (boss && boss.calls && this.bossSpawned && this.time + 1e-9 >= this._nextBossCall &&
+          this.enemies.some(enemy => enemy.boss && enemy.hp > 0)) {
+        this._nextBossCall += boss.calls;
+        this._spawnEnemy();
+        this._event('boss-call', this.enemies.find(enemy => enemy.boss), {name: boss.name});
+      }
       if (this.mode === 'auto' && this.time + 1e-9 >= this._nextAuto) {
         // Save up for the next role so cheap units cannot starve costly ones.
         // This rotates the selected roster and calls exactly the player's API.
@@ -1145,6 +1176,6 @@
     }
   }
 
-  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, LEVELS, ITEMS, STARS, SUMMON,
+  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, CHAPTERS, LEVELS, ITEMS, STARS, SUMMON,
     levelMultiplier, levelCost, starMultiplier, rollSummon, EnergyBank, Battle};
 }));
