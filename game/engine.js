@@ -1,5 +1,5 @@
 /*
- * Sugar Glider rescue — deterministic, offline, single-stage demo engine.
+ * Sugar Glider rescue — deterministic, offline demo engine (1.7: five stages, hero levels).
  * Every number in CONFIG, UNITS and ENEMIES is an EDITABLE SAMPLE.
  * Star cookies are entry energy; flux belongs only to the current battle.
  * No purchases, wallet, NFT, network, or real-money economy are implemented.
@@ -165,6 +165,25 @@
     asset: 'enemies-v2/' + unit.id + '.png', filename: 'enemies-v2/' + unit.id + '.png'
   }));
 
+  // 1.7 stage ladder. Stage 1 keeps the exact 1.6.6 values so the released
+  // single stage plays the same. Every number is an EDITABLE SAMPLE.
+  const STAGES = [
+    {id: 'stage-01', number: 1, name: 'ทุ่งสายลม', grade: 'day',
+      enemyHP: 500, duration: 75, spawnInterval: 5, hpMul: 1, damageMul: 1, rewardCoins: 30},
+    {id: 'stage-02', number: 2, name: 'ลำธารแสงแดด', grade: 'golden',
+      enemyHP: 600, duration: 85, spawnInterval: 4.8, hpMul: 1.08, damageMul: 1.06, rewardCoins: 45},
+    {id: 'stage-03', number: 3, name: 'สะพานหินยามเย็น', grade: 'sunset',
+      enemyHP: 700, duration: 95, spawnInterval: 4.6, hpMul: 1.16, damageMul: 1.12, rewardCoins: 60},
+    {id: 'stage-04', number: 4, name: 'ป่าเห็ดสนธยา', grade: 'dusk',
+      enemyHP: 800, duration: 105, spawnInterval: 4.4, hpMul: 1.24, damageMul: 1.18, rewardCoins: 75},
+    {id: 'stage-05', number: 5, name: 'หอ Mushroom ใต้แสงดาว', grade: 'night',
+      enemyHP: 900, duration: 115, spawnInterval: 4.2, hpMul: 1.32, damageMul: 1.24, rewardCoins: 90}
+  ];
+  // Hero level sample: +10% HP, damage and heal per level above 1.
+  const LEVELS = {max: 10, step: 0.1, costBase: 20};
+  const levelMultiplier = level => 1 + LEVELS.step * (clamp(Math.floor(level) || 1, 1, LEVELS.max) - 1);
+  const levelCost = level => LEVELS.costBase * level;
+
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
   const isAmount = n => Number.isFinite(n) && n >= 0;
 
@@ -230,15 +249,34 @@
       this.selectedRoster = UNITS.map((unit, index) => index);
       this.runId = 0;
       this.lastError = '';
+      this.stageIndex = 0;
+      this.levels = UNITS.map(() => 1);
       this._resetFields();
+    }
+
+    get stage() { return STAGES[this.stageIndex] || STAGES[0]; }
+
+    setStage(index) {
+      if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
+      if (!Number.isInteger(index) || !STAGES[index]) return false;
+      this.stageIndex = index;
+      if (this.state === 'ready') this._resetFields();
+      return true;
+    }
+
+    setLevels(levels) {
+      if (!Array.isArray(levels) || levels.length !== UNITS.length) return false;
+      this.levels = levels.map(level => clamp(Math.floor(level) || 1, 1, LEVELS.max));
+      return true;
     }
 
     _resetFields() {
       this.time = 0;
-      this.remaining = CONFIG.duration;
+      this.remaining = this.stage.duration;
       this.flux = CONFIG.fluxInitial;
       this.homeHP = CONFIG.homeHP;
-      this.enemyHP = CONFIG.enemyHP;
+      this.enemyHP = this.stage.enemyHP;
+      this.enemyMaxHP = this.stage.enemyHP;
       this.vehicleX = CONFIG.homeX;
       this.travelProgress = 0;
       this.baseDeployment = 0;
@@ -257,7 +295,7 @@
         facing: index === 0 ? 1 : -1, type: null,
         x: index === 0 ? CONFIG.homeX : CONFIG.enemyX,
         hp: index === 0 ? this.homeHP : this.enemyHP,
-        maxHP: index === 0 ? CONFIG.homeHP : CONFIG.enemyHP,
+        maxHP: index === 0 ? CONFIG.homeHP : this.enemyMaxHP,
         range: CONFIG.baseCannonRange, damage: CONFIG.baseCannonDamage,
         muzzleX: (index === 0 ? CONFIG.homeX : CONFIG.enemyX) +
           (index === 0 ? 1 : -1) * CONFIG.baseCannonMuzzleOffset,
@@ -362,7 +400,7 @@
     summon(index) {
       if (this.state !== 'running' || !Number.isInteger(index) || !UNITS[index] ||
           !this.selectedRoster.includes(index)) return false;
-      const spec = UNITS[index];
+      const spec = UNITS[index], power = levelMultiplier(this.levels[index]);
       if (this.allies.length >= CONFIG.maxAllies || this.cooldowns[index] > 1e-9 ||
           this.flux + 1e-9 < spec.cost) return false;
       // All guards precede this single mutation: repeated clicks cannot double spend.
@@ -375,9 +413,9 @@
         unitId: spec.id, index, kind: spec.kind, type: spec.type,
         classId: spec.classId, classTag: spec.classTag, className: spec.className,
         faction: 'ally', name: spec.name, x: CONFIG.homeX + CONFIG.spawnInset,
-        hp: spec.hp, maxHP: spec.hp, damage: spec.damage, range: spec.range,
+        hp: spec.hp * power, maxHP: spec.hp * power, damage: spec.damage * power, range: spec.range,
         attackRange: spec.range, stopDistance: spec.stopDistance,
-        speed: spec.speed, cooldown: 0.12, healCooldown: 0,
+        speed: spec.speed, cooldown: 0.12, healCooldown: 0, power, level: this.levels[index],
         attackLock: 0, movement: 'hold', targetId: null, targetX: null,
         formationAnchorId: null, formationGap: 0,
         retreatRemaining: ['guard', 'scout'].includes(spec.kind) ? 0 : CONFIG.retreatLimitWithoutScreen,
@@ -391,13 +429,13 @@
       if (this.enemies.length >= CONFIG.maxEnemies) return;
       const wave = this.metrics.spawnedEnemies;
       const index = wave % ENEMIES.length, spec = ENEMIES[index];
-      const hp = (CONFIG.enemyInitialHP + wave * CONFIG.enemyHPGrowth) * spec.hpFactor;
+      const hp = (CONFIG.enemyInitialHP + wave * CONFIG.enemyHPGrowth) * spec.hpFactor * this.stage.hpMul;
       this.enemies.push({id: spec.id + '-' + this.runId + '-' + (++this._serial),
         unitId: spec.id, index, kind: spec.kind, type: TYPES[wave % TYPES.length].id,
         classId: spec.classId, classTag: spec.classTag, className: spec.className,
         faction: 'enemy', name: spec.name,
         x: CONFIG.enemyX - CONFIG.spawnInset,
-        hp, maxHP: hp, damage: (CONFIG.enemyDamage + wave * CONFIG.enemyDamageGrowth) * spec.damageFactor,
+        hp, maxHP: hp, damage: (CONFIG.enemyDamage + wave * CONFIG.enemyDamageGrowth) * spec.damageFactor * this.stage.damageMul,
         range: spec.range, speed: spec.speed, cooldown: 0.2, healCooldown: 0,
         attackRange: spec.range, stopDistance: spec.stopDistance,
         attackLock: 0, movement: 'hold', targetId: null, targetX: null,
@@ -585,7 +623,7 @@
           ? {id: projectile.targetId, unitId: projectile.targetId, kind: 'base',
             type: null, x: projectile.friendly ? CONFIG.enemyX : CONFIG.homeX,
             index: -1, hp: this[baseKey],
-            maxHP: projectile.friendly ? CONFIG.enemyHP : CONFIG.homeHP,
+            maxHP: projectile.friendly ? this.enemyMaxHP : CONFIG.homeHP,
             attackFlash: 0, blockFlash: 0, hitFlash: 0, facing: projectile.friendly ? -1 : 1}
           : opponents.find(unit => unit.id === projectile.targetId && unit.hp > 0);
         // A projectile keeps its own source/type after firing. It never retargets
@@ -660,13 +698,13 @@
       this._tick += 1;
       this.time = this._tick * CONFIG.fixedStep;
       this.baseDeployment = Math.min(1, this.time / CONFIG.deployDuration);
-      this.remaining = Math.max(0, CONFIG.duration - this.time);
+      this.remaining = Math.max(0, this.stage.duration - this.time);
       this.flux = Math.min(CONFIG.fluxMax, this.flux + CONFIG.fluxRegen * dt);
       for (let i = 0; i < this.cooldowns.length; i++) this.cooldowns[i] = Math.max(0, this.cooldowns[i] - dt);
       this.effects = this.effects.filter(effect => (effect.ttl -= dt) > 0);
       while (this.time + 1e-9 >= this._nextEnemy) {
         this._spawnEnemy();
-        this._nextEnemy += CONFIG.enemySpawnInterval;
+        this._nextEnemy += this.stage.spawnInterval;
       }
       if (this.mode === 'auto' && this.time + 1e-9 >= this._nextAuto) {
         // Save up for the next role so cheap units cannot starve costly ones.
@@ -761,9 +799,10 @@
           const injured = teammates.filter(u => u.hp < u.maxHP && Math.abs(u.x - unit.x) <= spec.healRange)
             .sort((a, b) => a.hp / a.maxHP - b.hp / b.maxHP)[0];
           if (injured) {
-            healing.push({source: unit, target: injured, amount: spec.heal});
+            const healAmount = spec.heal * (unit.power || 1);
+            healing.push({source: unit, target: injured, amount: healAmount});
             unit.healCooldown = spec.healInterval;
-            this._effect('heal', unit, injured, spec.heal);
+            this._effect('heal', unit, injured, healAmount);
           }
         }
         if (distance > unit.range + 1e-9) return;
@@ -803,7 +842,7 @@
         this[key] = Math.max(0, this[key] - amount);
         if (amount > 0) {
           const base = {id: hit.target.id, unitId: hit.target.id, kind: 'base', index: -1,
-            type: null, x: hit.target.x, hp: this[key], maxHP: hit.friendly ? CONFIG.enemyHP : CONFIG.homeHP,
+            type: null, x: hit.target.x, hp: this[key], maxHP: hit.friendly ? this.enemyMaxHP : CONFIG.homeHP,
             facing: hit.friendly ? -1 : 1, attackFlash: 0, blockFlash: 0, hitFlash: CONFIG.hitFlashDuration};
           this._event('base-hit', base, {sourceId: hit.source.id, targetId: base.id,
             amount, rawDamage: hit.amount, multiplier: 1, blocked: 0, cause: 'melee'});
@@ -838,7 +877,8 @@
       if (this.state !== 'won' || this.claimed) return false;
       // Mark first, then mutate balances, so repeated handlers remain idempotent.
       this.claimed = true;
-      const reward = {coins: CONFIG.rewardCoins, cookies: CONFIG.rewardCookies, friend: !this.progress.rescued};
+      const reward = {coins: this.stage.rewardCoins, cookies: CONFIG.rewardCookies,
+        friend: !this.progress.rescued, stageIndex: this.stageIndex};
       this.bank.add(reward.cookies);
       this.progress.coins += reward.coins;
       this.progress.rescued = true;
@@ -849,5 +889,6 @@
     }
   }
 
-  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, EnergyBank, Battle};
+  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, LEVELS,
+    levelMultiplier, levelCost, EnergyBank, Battle};
 }));
