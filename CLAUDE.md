@@ -31,6 +31,12 @@ The owner writes Thai; reply in Thai.
   (tables profiles, friend_links, friend_gifts, helper_uses, guilds, guild_members in SAVES_DB). Friendship points are the
   server wallet's `fp`, earned only through `award()` (300 F/day cap, Thai day). Client `friends.js`: nothing in any save;
   the lent hero is a UI choice in `little-rescue-social-v1`; a borrowed helper is `battle.setHelper()` for one run.
+- Admin + live ops (1.16): `game/admin.html` → `functions/api/admin/[[path]].js` (secret `ADMIN_KEY` ≥ 24 chars, Bearer;
+  10 bad keys/15 min/IP → 429; every action and every player view goes to `admin_log`). Gift box, events, maintenance live
+  in `functions/_lib/live.js` (tables in SAVES_DB). Players: `GET /api/live` (public), `GET/POST /api/gifts` (device token).
+  Gift coins go to the server wallet in one batch with the claim row (ledger ref `gift:<id>:<player>`); cookies are paid
+  locally via `little-rescue-gifts-v1` pending → savedAction. Event coin bonus is added by app.js on claim and by play.js
+  on the `win` op (same rounding). `game/live.js` mounts before app.js; the lobby 🎁 tab opens it.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).

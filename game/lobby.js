@@ -1,14 +1,14 @@
 /* 1.9: the start screen becomes a lobby with a bottom tab bar, laid out like LINE Rangers' home menu.
    ผจญภัย (stage, mode, items) · ทีม (roster) · อัปเกรด (levels) · สะสม (hero book) · ภารกิจ (daily dialog);
-   เพื่อน / กล่องของขวัญ are placeholders until there is a server; ร้านค้า opens when shop.js finds the shop
-   server (enable('shop')). The tabs only show and hide the
+   เพื่อน is a placeholder until there is a server; ร้านค้า opens when shop.js finds the shop server (enable('shop'));
+   กล่องของขวัญ opens live.js (1.16). The tabs only show and hide the
    existing start-screen controls, so every save path stays the one app.js already uses. */
 (()=>{
  'use strict';
  const TABS=[
   {id:'adventure',icon:'🗺️',label:'ผจญภัย'},{id:'team',icon:'🐾',label:'ทีม'},{id:'upgrade',icon:'⬆️',label:'อัปเกรด'},
   {id:'book',icon:'📖',label:'สะสม'},{id:'summon',icon:'✨',label:'สุ่ม'},{id:'missions',icon:'📋',label:'ภารกิจ'},
-  {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน'},{id:'gifts',icon:'🎁',label:'ของขวัญ',soon:true}];
+  {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน'},{id:'gifts',icon:'🎁',label:'ของขวัญ'}];
  const typeName={stone:'หินอุ่น',star:'แสงดาว',wind:'สายลม'};
  let app=null,tab='adventure',bar=null,items=null,book=null;
 
@@ -16,6 +16,7 @@
   const def=TABS.find(t=>t.id===id);if(!def)return;
   if(def.soon){app.toast(`${def.icon} ${def.label} · เร็วๆ นี้`);return}
   if(id==='missions'){window.SideviewDaily.open();return}
+  if(id==='gifts'){window.SideviewLive?.openGifts();return}
   tab=id;document.getElementById('preflightControls').dataset.tab=id;
   bar.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===id)));
   if(id==='book')renderBook();
@@ -64,7 +65,7 @@
   book.addEventListener('click',event=>{const i=event.target.closest('[data-unlock]')?.dataset.unlock;if(i!==undefined)app.unlockHero(Number(i)).then(renderBook)});
   bar=document.createElement('nav');bar.className='lobby-tabs';bar.setAttribute('aria-label','เมนูหลัก');
   bar.innerHTML=TABS.map(t=>`<button type="button" data-tab="${t.id}" aria-pressed="${t.id===tab}" class="${t.soon?'soon':''}">
-   <span aria-hidden="true">${t.icon}</span><small>${t.label}</small>${t.id==='missions'?'<i class="daily-badge" aria-hidden="true"></i>':''}${t.soon?'<em>เร็วๆ นี้</em>':''}</button>`).join('');
+   <span aria-hidden="true">${t.icon}</span><small>${t.label}</small>${t.id==='missions'||t.id==='gifts'?'<i class="daily-badge" aria-hidden="true"></i>':''}${t.soon?'<em>เร็วๆ นี้</em>':''}</button>`).join('');
   bar.addEventListener('click',event=>{const id=event.target.closest('[data-tab]')?.dataset.tab;if(id)setTab(id)});
   modal.append(bar);
   refresh();

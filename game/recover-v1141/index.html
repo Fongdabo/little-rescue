@@ -5,7 +5,7 @@
 <script>
 'use strict';
 (()=>{
- const TARGET='pwa-1.15.0',scope=new URL('../',location.href).href,swURL=new URL('sw.js',scope).href,lockName='little-rescue-pwa-lifecycle:'+scope;
+ const TARGET='pwa-1.16.0',scope=new URL('../',location.href).href,swURL=new URL('sw.js',scope).href,lockName='little-rescue-pwa-lifecycle:'+scope;
  const $=id=>document.getElementById(id),status=text=>{$('status').textContent=text};
  let registration=null,activeBuild=null,waitingBuild=null,held=false,frozen=null,releaseLease=null,leaseDone=null,applying=false,checking=false,ready=false;
  const hasLocks=Boolean(navigator.locks?.request);

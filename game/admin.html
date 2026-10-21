@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>หลังบ้าน · Little Rescue</title>
+<style>
+:root{--bg:#f6f3ea;--card:#fffdf7;--ink:#2d2a24;--muted:#6f685c;--line:#e4dccb;--accent:#3f8f5a;--accent2:#d9822b;--bad:#c2463b;--soft:#eef5ef}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1b18;--card:#262420;--ink:#f1ece0;--muted:#b0a796;--line:#3a362f;--accent:#6cc08a;--accent2:#f0a35a;--bad:#ef7b70;--soft:#24332a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,"Noto Sans Thai",sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:0 0 6px}h3{font-size:15px;margin:12px 0 4px}
+p.sub,.hint{color:var(--muted);margin:0 0 10px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0;overflow-x:auto}
+form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px}
+label.grow{flex:1 1 220px}
+input,select,textarea,button{font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+textarea{min-height:56px;resize:vertical}
+button{background:var(--accent);color:#fff;border-color:transparent;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+button.danger{background:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.tile b{display:block;font-size:24px;font-variant-numeric:tabular-nums}.tile span{color:var(--muted);font-size:13px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.num{text-align:right}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+pre{max-height:360px;overflow:auto;background:var(--soft);padding:10px;border-radius:8px;font-size:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;background:var(--soft)}
+.pill.on{background:var(--bad);color:#fff}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+nav.tabs button{background:transparent;color:var(--ink);border-color:var(--line)}
+nav.tabs button[aria-pressed=true]{background:var(--accent);color:#fff;border-color:transparent}
+#msg{font-weight:600;color:var(--bad)}
+.ok{color:var(--accent)!important}
+a{color:var(--accent)}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit}
+</style>
+</head>
+<body>
+<main>
+<h1>หลังบ้าน Little Rescue</h1>
+<p class="sub">ดูผู้เล่น ส่งของขวัญ ทำกิจกรรม และประกาศปิดปรับปรุง ทุกการกระทำถูกบันทึกไว้ หน้านี้ใช้รหัสแอดมิน (ADMIN_KEY) ที่ตั้งไว้ใน Cloudflare</p>
+<div class="card">
+<form id="login">
+<label class="grow">รหัสแอดมิน<input id="key" type="password" autocomplete="current-password" required></label>
+<button>เข้าหลังบ้าน</button><button type="button" class="ghost" id="logout" hidden>ออก</button>
+<span id="msg" role="status" aria-live="polite"></span>
+</form>
+<p class="hint">รหัสจำไว้เฉพาะแท็บนี้ ปิดแท็บแล้วต้องใส่ใหม่ <a href="stats.html">สถิติผู้เล่น →</a></p>
+</div>
+
+<div id="app" hidden>
+<div class="tiles" id="tiles"></div>
+<nav class="tabs" aria-label="เมนูหลังบ้าน">
+<button type="button" data-tab="players" aria-pressed="true">👤 ผู้เล่น</button>
+<button type="button" data-tab="gifts" aria-pressed="false">🎁 ของขวัญ</button>
+<button type="button" data-tab="events" aria-pressed="false">🎉 กิจกรรม</button>
+<button type="button" data-tab="maintenance" aria-pressed="false">🛠️ ปิดปรับปรุง</button>
+<button type="button" data-tab="log" aria-pressed="false">📜 บันทึก</button>
+</nav>
+
+<section data-panel="players">
+<div class="card"><h2>ค้นหาผู้เล่น</h2>
+<form id="search"><label class="grow">รหัสผู้เล่น (LR-XXXX-XXXX) หรือรหัสกู้บัญชี 16 ตัว<input id="q" autocomplete="off" spellcheck="false" placeholder="LR-ABCD-EFGH"></label><button>ค้นหา</button><button type="button" class="ghost" id="recent">ผู้เล่นล่าสุด</button></form>
+<p class="hint">รหัสกู้บัญชีใช้ค้นหาได้แต่ไม่ถูกบันทึก ไม่เก็บไว้ที่ไหน</p>
+<table id="players"></table></div>
+<div class="card" id="player" hidden></div>
+</section>
+
+<section data-panel="gifts" hidden>
+<div class="card"><h2>ส่งของขวัญ</h2>
+<p class="hint">ผู้เล่นต้องมีบัญชี ☁️ จึงจะรับได้ "ทุกคน" รวมบัญชีที่สร้างใหม่ก่อนหมดเขตด้วย รับได้บัญชีละครั้ง เหรียญเข้ายอดบนเซิร์ฟเวอร์ คุกกี้ดาวเก็บได้สูงสุด 30 ชิ้น ส่วนที่เกินจะหายไป</p>
+<form id="giftForm">
+<label>ส่งถึง<select id="giftTo"><option value="ALL">ทุกคน</option><option value="ONE">ผู้เล่นคนเดียว</option></select></label>
+<label id="giftPlayerLabel" hidden>รหัสผู้เล่น<input id="giftPlayer" placeholder="LR-ABCD-EFGH" autocomplete="off" spellcheck="false"></label>
+<label class="grow">หัวข้อ<input id="giftTitle" maxlength="60" required placeholder="ขอบคุณที่เล่น Little Rescue"></label>
+<label class="grow" style="flex-basis:100%">ข้อความ<textarea id="giftMessage" maxlength="300" placeholder="ข้อความถึงผู้เล่น (ไม่ใส่ก็ได้)"></textarea></label>
+<label>เหรียญ ◉<input id="giftCoins" type="number" min="0" max="10000" value="100" required></label>
+<label>คุกกี้ดาว ★<input id="giftCookies" type="number" min="0" max="100" value="0" required></label>
+<label>รับได้ภายใน (วัน)<input id="giftDays" type="number" min="1" max="60" value="7" required></label>
+<button>ส่งของขวัญ</button>
+</form></div>
+<div class="card"><h2>ของขวัญที่ส่งแล้ว</h2><table id="gifts"></table></div>
+</section>
+
+<section data-panel="events" hidden>
+<div class="card"><h2>สร้างกิจกรรม / แบนเนอร์</h2>
+<p class="hint">แสดงเป็นแถบบนหน้าเริ่มเกมระหว่างช่วงเวลาที่ตั้ง (เวลาในเครื่องนี้) โบนัสเหรียญเพิ่มเหรียญที่ได้จากการชนะด่าน ถ้ามีหลายกิจกรรมใช้โบนัสที่สูงสุด</p>
+<form id="eventForm">
+<label>ไอคอน<input id="eventIcon" maxlength="4" value="🎉" style="width:4em"></label>
+<label class="grow">ชื่อกิจกรรม<input id="eventTitle" maxlength="60" required placeholder="สุดสัปดาห์เหรียญคูณสอง"></label>
+<label class="grow" style="flex-basis:100%">รายละเอียด<textarea id="eventMessage" maxlength="300" placeholder="ชนะด่านไหนก็ได้ รับเหรียญเพิ่ม"></textarea></label>
+<label>โบนัสเหรียญ<select id="eventBonus"><option value="0">ไม่มี (แบนเนอร์อย่างเดียว)</option><option value="50">+50%</option><option value="100" selected>+100% (×2)</option><option value="200">+200% (×3)</option></select></label>
+<label>เริ่ม<input id="eventStart" type="datetime-local" required></label>
+<label>จบ<input id="eventEnd" type="datetime-local" required></label>
+<button>สร้างกิจกรรม</button>
+</form></div>
+<div class="card"><h2>กิจกรรมทั้งหมด</h2><table id="events"></table></div>
+</section>
+
+<section data-panel="maintenance" hidden>
+<div class="card"><h2>ประกาศปิดปรับปรุง</h2>
+<p class="hint">เปิดแล้วผู้เล่นเห็นแถบประกาศบนหน้าเริ่มเกม และกดรับของขวัญไม่ได้ชั่วคราว ตัวเกม การเล่นด่าน และเซฟยังใช้ได้ตามปกติ (เกมไม่โหลดใหม่กลางด่าน)</p>
+<p>ตอนนี้: <span class="pill" id="mState">–</span> <span class="hint" id="mWhen"></span></p>
+<form id="mForm"><label class="grow">ข้อความถึงผู้เล่น<input id="mMessage" maxlength="300" placeholder="ปรับปรุงระบบออนไลน์ 20:00–21:00 น. เล่นได้ตามปกติ"></label>
+<button type="submit" id="mOn" class="danger">เปิดประกาศ</button><button type="button" id="mOff" class="ghost">ปิดประกาศ</button></form></div>
+</section>
+
+<section data-panel="log" hidden>
+<div class="card"><h2>บันทึกการกระทำของแอดมิน (100 รายการล่าสุด)</h2><table id="log"></table></div>
+</section>
+</div>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+const when=t=>t?new Date(t).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}):'–';
+const localInput=t=>{const d=new Date(t-new Date(t).getTimezoneOffset()*6e4);return d.toISOString().slice(0,16)};
+const ERRORS={'wrong-key':'รหัสไม่ถูกต้อง','no-admin-key':'ยังไม่ได้ตั้ง ADMIN_KEY (อย่างน้อย 24 ตัว) ใน Cloudflare','no-db':'ยังไม่ได้ผูกฐานข้อมูล SAVES_DB',
+ 'too-many-tries':'ใส่รหัสผิดหลายครั้ง รอ 15 นาทีแล้วลองใหม่','no-player':'ไม่พบผู้เล่นนี้','bad-target':'รหัสผู้เล่นไม่ถูกต้อง (LR-XXXX-XXXX)',
+ 'bad-gift':'ใส่หัวข้อ และเหรียญหรือคุกกี้อย่างน้อยหนึ่งอย่าง','bad-event':'ตรวจชื่อและเวลา (จบหลังเริ่ม ยาวไม่เกิน 60 วัน)','no-gift':'ไม่พบของขวัญ หรือยกเลิกไปแล้ว','no-event':'กิจกรรมนี้จบไปแล้ว'};
+let key='';try{key=sessionStorage.getItem('little-rescue-admin-key')||''}catch{}
+function say(text,ok=false){$('msg').textContent=text;$('msg').classList.toggle('ok',ok)}
+async function api(path,{method='GET',body}={}){
+ const r=await fetch('api/admin/'+path,{method,headers:{Authorization:'Bearer '+key,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,cache:'no-store'});
+ const d=await r.json().catch(()=>({error:'bad'}));
+ if(!r.ok){const e=new Error(ERRORS[d.error]||`ทำไม่ได้ (${r.status} ${d.error||''})`);e.code=d.error;throw e}
+ return d;
+}
+async function run(fn,done){try{const out=await fn();if(done)say(done,true);return out}catch(e){say(e.message);if(e.code==='wrong-key')signOut(false);return null}}
+
+$('login').addEventListener('submit',async e=>{e.preventDefault();key=$('key').value.trim();await enter()});
+$('logout').addEventListener('click',()=>signOut(true));
+function signOut(clear){key='';try{sessionStorage.removeItem('little-rescue-admin-key')}catch{};$('app').hidden=true;$('logout').hidden=true;if(clear){$('key').value='';say('')}}
+async function enter(){
+ say('กำลังโหลด…',true);
+ const o=await run(()=>api('overview'));if(!o)return;
+ try{sessionStorage.setItem('little-rescue-admin-key',key)}catch{}
+ $('app').hidden=false;$('logout').hidden=false;say('');paintOverview(o);loadRecent();
+}
+function paintOverview(o){
+ $('tiles').innerHTML=[[o.players,'บัญชีทั้งหมด'],[o.newPlayers7d,'บัญชีใหม่ 7 วัน'],[o.active7d,'เข้าเล่น 7 วัน (มีบัญชี)'],[o.saves,'เซฟบนคลาวด์'],[o.openGifts,'ของขวัญที่เปิดรับ'],[o.events,'กิจกรรมที่ยังไม่จบ']]
+  .map(([v,l])=>`<div class="tile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')+
+  `<div class="tile"><b>${o.maintenance.on?'🛠️ เปิด':'ปกติ'}</b><span>ประกาศปิดปรับปรุง</span></div>`;
+ paintMaintenance(o.maintenance);
+}
+async function refreshOverview(){const o=await run(()=>api('overview'));if(o)paintOverview(o)}
+
+// tabs
+document.querySelector('nav.tabs').addEventListener('click',e=>{const t=e.target.closest('[data-tab]')?.dataset.tab;if(t)tab(t)});
+function tab(t){
+ document.querySelectorAll('nav.tabs [data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===t)));
+ document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==t);
+ ({gifts:loadGifts,events:loadEvents,log:loadLog,maintenance:refreshOverview})[t]?.();
+}
+
+// players
+function playerRows(list){
+ $('players').innerHTML=list.length?'<tr><th>ผู้เล่น</th><th>สร้างบัญชี</th><th>เซฟล่าสุด</th></tr>'+list.map(p=>`<tr><td><button class="linkbtn" data-player="${esc(p.id)}"><code>${esc(p.id)}</code></button></td><td>${when(p.created_at)}</td><td>${when(p.saved_at)}</td></tr>`).join(''):'<tr><td>ไม่พบผู้เล่น</td></tr>';
+}
+async function loadRecent(){const d=await run(()=>api('players'));if(d)playerRows(d.players)}
+$('recent').addEventListener('click',loadRecent);
+$('search').addEventListener('submit',async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return loadRecent();
+ const d=await run(()=>api('players?q='+encodeURIComponent(q)));if(!d)return;playerRows(d.players);if(d.players.length===1)showPlayer(d.players[0].id);$('q').value=''});
+$('players').addEventListener('click',e=>{const id=e.target.closest('[data-player]')?.dataset.player;if(id)showPlayer(id)});
+async function showPlayer(id){
+ const p=await run(()=>api('players/'+id));if(!p)return;
+ const s=p.save?.summary;
+ $('player').hidden=false;
+ $('player').innerHTML=`<h2>ผู้เล่น <code>${esc(p.id)}</code></h2>
+  <p class="hint">สร้างบัญชี ${when(p.createdAt)} · อุปกรณ์ที่เข้าอยู่ ${p.devices} เครื่อง · ใช้งานล่าสุด ${when(p.lastSeen)}</p>
+  ${s?`<h3>เซฟบนคลาวด์ (สำเนาจากเครื่องผู้เล่น)</h3><div class="tiles"><div class="tile"><b>${esc(s.coins)}</b><span>เหรียญ</span></div><div class="tile"><b>${esc(s.cookies)}</b><span>คุกกี้ดาว</span></div>
+   <div class="tile"><b>${esc(s.cleared)}</b><span>ด่านที่ผ่าน</span></div><div class="tile"><b>${esc(s.levels.join(' / ')||'–')}</b><span>เลเวลเพื่อน</span></div><div class="tile"><b>${esc(s.loginStreak??'–')}</b><span>เข้าเกมติดกัน (วัน)</span></div></div>
+   <p class="hint">เซฟบนคลาวด์รุ่นที่ ${p.save.rev} · บันทึก ${when(p.save.savedAt)} · ${p.save.size.toLocaleString()} ไบต์ · ตัวเลขชุดนี้มาจากเครื่องผู้เล่น</p>`
+   :'<p>ยังไม่มีเซฟบนคลาวด์</p>'}
+  ${p.wallet?`<h3>ยอดบนเซิร์ฟเวอร์ (ของจริง)</h3><div class="tiles"><div class="tile"><b>${esc(p.wallet.coins)}</b><span>เหรียญ</span></div><div class="tile"><b>${esc(p.wallet.gems)}</b><span>เพชร</span></div>
+   <div class="tile"><b>${esc(p.wallet.fp)}</b><span>แต้มมิตรภาพ</span></div>
+   <div class="tile"><b>${esc(p.wallet.cleared)}</b><span>ด่านที่ผ่าน</span></div><div class="tile"><b>${p.heroes.filter(h=>h.owned).length} / ${p.heroes.length}</b><span>ตัวละครที่มี</span></div></div>
+   <details><summary>ตัวละคร เลเวล และดาว</summary><table><tr><th>ตัวละคร</th><th class="num">เลเวล</th><th class="num">ดาว</th><th>มีแล้ว</th></tr>${p.heroes.map(h=>`<tr><td><code>${esc(h.unit)}</code></td><td class="num">${h.level}</td><td class="num">${'★'.repeat(h.star)}</td><td>${h.owned?'✓':'–'}</td></tr>`).join('')}</table></details>
+   ${p.ledger.length?`<details><summary>รายการเข้าออกล่าสุด ${p.ledger.length} รายการ</summary><table><tr><th>เวลา</th><th>รายการ</th><th class="num">เหรียญ</th><th class="num">คงเหลือ</th></tr>${p.ledger.map(l=>`<tr><td>${when(l.at)}</td><td>${esc(LEDGER[l.kind]||l.kind)}</td><td class="num">${l.coins>0?'+':''}${l.coins}</td><td class="num">${l.balance}</td></tr>`).join('')}</table></details>`:''}`
+   :'<p class="hint">ยังไม่มียอดบนเซิร์ฟเวอร์ (ผู้เล่นยังไม่ได้เปิดเกมรุ่น 1.13 ขึ้นไปหลังสร้างบัญชี) ตัวเลขด้านบนมาจากเซฟในเครื่อง</p>'}
+  <div class="row"><button type="button" id="giftThis">🎁 ส่งของขวัญให้คนนี้</button></div>
+  <h3>ของขวัญที่รอรับ</h3>${p.waiting.length?`<table><tr><th>ของขวัญ</th><th>ได้</th><th>หมดเขต</th></tr>${p.waiting.map(g=>`<tr><td>${esc(g.title)}${g.everyone?' <span class="pill">ทุกคน</span>':''}</td><td>◉ ${g.coins} ★ ${g.cookies}</td><td>${when(g.expires_at)}</td></tr>`).join('')}</table>`:'<p class="hint">ไม่มี</p>'}
+  <h3>ของขวัญที่รับแล้ว</h3>${p.claimed.length?`<table><tr><th>ของขวัญ</th><th>ได้</th><th>รับเมื่อ</th></tr>${p.claimed.map(g=>`<tr><td>${esc(g.title||'#'+g.gift_id)}</td><td>◉ ${esc(g.coins)} ★ ${esc(g.cookies)}</td><td>${when(g.claimed_at)}</td></tr>`).join('')}</table>`:'<p class="hint">ยังไม่มี</p>'}
+  ${p.save?`<details><summary>ดูข้อมูลเซฟทั้งหมด (JSON)</summary><pre>${esc(JSON.stringify(p.save.bundle,null,2))}</pre></details>`:''}`;
+ $('giftThis').addEventListener('click',()=>{tab('gifts');$('giftTo').value='ONE';$('giftPlayerLabel').hidden=false;$('giftPlayer').value=p.id;$('giftTitle').focus()});
+ $('player').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// gifts
+$('giftTo').addEventListener('change',()=>{$('giftPlayerLabel').hidden=$('giftTo').value!=='ONE'});
+$('giftForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const to=$('giftTo').value==='ALL'?'ALL':$('giftPlayer').value.trim().toUpperCase();
+ const body={to,title:$('giftTitle').value,message:$('giftMessage').value,coins:+$('giftCoins').value,cookies:+$('giftCookies').value,days:+$('giftDays').value};
+ if(!confirm(`ส่ง "${body.title}" (◉ ${body.coins} ★ ${body.cookies}) ให้${to==='ALL'?'ผู้เล่นทุกคน':` ${to}`} รับได้ ${body.days} วัน?`))return;
+ const d=await run(()=>api('gifts',{method:'POST',body}),'ส่งของขวัญแล้ว');if(!d)return;
+ $('giftTitle').value='';$('giftMessage').value='';loadGifts();refreshOverview();
+});
+async function loadGifts(){
+ const d=await run(()=>api('gifts'));if(!d)return;const now=Date.now();
+ $('gifts').innerHTML=d.gifts.length?'<tr><th>#</th><th>ถึง</th><th>หัวข้อ</th><th>ได้</th><th>รับแล้ว</th><th>หมดเขต</th><th></th></tr>'+d.gifts.map(g=>{
+  const state=g.revoked_at?'ยกเลิกแล้ว':g.expires_at<=now?'หมดเขต':'';
+  return `<tr><td>${g.id}</td><td>${g.player_id?`<code>${esc(g.player_id)}</code>`:'<span class="pill">ทุกคน</span>'}</td><td>${esc(g.title)}</td><td>◉ ${g.coins} ★ ${g.cookies}</td><td class="num">${g.claims}</td><td>${when(g.expires_at)}</td>
+   <td>${state?`<span class="hint">${state}</span>`:`<button class="ghost" data-revoke="${g.id}">ยกเลิก</button>`}</td></tr>`}).join(''):'<tr><td>ยังไม่เคยส่งของขวัญ</td></tr>';
+}
+$('gifts').addEventListener('click',async e=>{const id=e.target.closest('[data-revoke]')?.dataset.revoke;if(!id||!confirm('ยกเลิกของขวัญนี้? คนที่รับไปแล้วยังได้ของอยู่ คนที่ยังไม่รับจะรับไม่ได้'))return;
+ if(await run(()=>api(`gifts/${id}/revoke`,{method:'POST'}),'ยกเลิกแล้ว')){loadGifts();refreshOverview()}});
+
+// events
+$('eventStart').value=localInput(Date.now());$('eventEnd').value=localInput(Date.now()+3*864e5);
+$('eventForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const body={icon:$('eventIcon').value,title:$('eventTitle').value,message:$('eventMessage').value,coinBonus:+$('eventBonus').value,
+  startsAt:new Date($('eventStart').value).getTime(),endsAt:new Date($('eventEnd').value).getTime()};
+ if(!confirm(`สร้างกิจกรรม "${body.title}" ${when(body.startsAt)} ถึง ${when(body.endsAt)}${body.coinBonus?` โบนัสเหรียญ +${body.coinBonus}%`:''}?`))return;
+ if(await run(()=>api('events',{method:'POST',body}),'สร้างกิจกรรมแล้ว')){$('eventTitle').value='';$('eventMessage').value='';loadEvents();refreshOverview()}
+});
+async function loadEvents(){
+ const d=await run(()=>api('events'));if(!d)return;
+ $('events').innerHTML=d.events.length?'<tr><th></th><th>กิจกรรม</th><th>โบนัส</th><th>เริ่ม</th><th>จบ</th><th></th></tr>'+d.events.map(ev=>{
+  const state=ev.ends_at<=d.now?'จบแล้ว':ev.starts_at>d.now?'รอเริ่ม':'กำลังจัด';
+  return `<tr><td>${esc(ev.icon)}</td><td><b>${esc(ev.title)}</b><br><span class="hint">${esc(ev.message)}</span></td><td>${ev.coin_bonus?`+${ev.coin_bonus}%`:'–'}</td><td>${when(ev.starts_at)}</td><td>${when(ev.ends_at)}</td>
+   <td><span class="pill">${state}</span>${state!=='จบแล้ว'?` <button class="ghost" data-end="${ev.id}">จบตอนนี้</button>`:''}</td></tr>`}).join(''):'<tr><td>ยังไม่มีกิจกรรม</td></tr>';
+}
+$('events').addEventListener('click',async e=>{const id=e.target.closest('[data-end]')?.dataset.end;if(!id||!confirm('จบกิจกรรมนี้ตอนนี้เลย?'))return;
+ if(await run(()=>api(`events/${id}/end`,{method:'POST'}),'จบกิจกรรมแล้ว')){loadEvents();refreshOverview()}});
+
+// maintenance
+function paintMaintenance(m){$('mState').textContent=m.on?'เปิดประกาศอยู่':'ปกติ';$('mState').classList.toggle('on',m.on);$('mWhen').textContent=m.updatedAt?`แก้ล่าสุด ${when(m.updatedAt)}`:'';if(m.message&&!$('mMessage').value)$('mMessage').value=m.message}
+async function setMaintenance(on){
+ if(!confirm(on?'เปิดประกาศปิดปรับปรุง? ผู้เล่นจะรับของขวัญไม่ได้จนกว่าจะปิด':'ปิดประกาศ กลับเป็นปกติ?'))return;
+ const m=await run(()=>api('maintenance',{method:'PUT',body:{on,message:$('mMessage').value}}),on?'เปิดประกาศแล้ว':'กลับเป็นปกติแล้ว');if(m){paintMaintenance(m);refreshOverview()}
+}
+$('mForm').addEventListener('submit',e=>{e.preventDefault();setMaintenance(true)});
+$('mOff').addEventListener('click',()=>setMaintenance(false));
+
+// log
+const LEDGER={unlock:'ปลดล็อกตัวละคร','shop-purchase':'ซื้อเพชร','shop-refund':'คืนเงินเพชร',friend:'แต้มมิตรภาพ',seed:'ย้ายยอดเดิมเข้าเซิร์ฟเวอร์',win:'ชนะด่าน','win-offline':'ชนะด่าน (ออฟไลน์)',loss:'แพ้',level:'อัปเลเวล',star:'อัปดาว',summon:'สุ่ม',daily:'ภารกิจรายวัน',gift:'ของขวัญจากแอดมิน'};
+const ACTIONS={search:'ค้นหาผู้เล่น','view-player':'ดูข้อมูลผู้เล่น',gift:'ส่งของขวัญ','gift-revoke':'ยกเลิกของขวัญ',event:'สร้างกิจกรรม','event-end':'จบกิจกรรม',maintenance:'ประกาศปิดปรับปรุง'};
+async function loadLog(){
+ const d=await run(()=>api('log'));if(!d)return;
+ $('log').innerHTML=d.log.length?'<tr><th>เวลา</th><th>การกระทำ</th><th>เป้าหมาย</th><th>รายละเอียด</th><th>IP</th></tr>'+d.log.map(l=>`<tr><td>${when(l.at)}</td><td>${esc(ACTIONS[l.action]||l.action)}</td><td><code>${esc(l.target||'')}</code></td><td><code>${esc(l.detail||'')}</code></td><td><code>${esc(l.ip||'')}</code></td></tr>`).join(''):'<tr><td>ยังไม่มีบันทึก</td></tr>';
+}
+
+if(key){$('key').value=key;enter()}
+</script>
+</body>
+</html>

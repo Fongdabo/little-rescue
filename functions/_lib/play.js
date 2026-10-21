@@ -6,6 +6,7 @@
 
 import {apply, getWallet, ensureWallet} from './wallet.js';
 import {UNIT_IDS, BASE_HEROES, UNLOCK, STAGE_REWARDS, LEVELS, levelCost, STARS, SUMMON, MISSIONS, LOGIN, PLAY, MAX_SHARDS, rollSummon} from './economy.js';
+import {eventBonus} from './live.js';
 
 const DAY = 86400000;
 const isDay = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + 'T00:00:00Z'));
@@ -85,6 +86,8 @@ export async function applyOp(db, playerId, op, now = Date.now()) {
       count(db, playerId, ['win', 'win-offline'], now - DAY), count(db, playerId, ['win-offline'], now - DAY)]);
   }
   const kind = op.kind === 'win' && !run ? 'win-offline' : String(op.kind || '').slice(0, 20);
+  // 1.16 events from the admin page: the coin bonus running when the reward was claimed (live.js), as the game adds it.
+  const bonus = op.kind === 'win' ? await eventBonus(db, run ? now : Math.min(now, Number(op.at) || now)) : 0;
 
   const outcome = await apply(db, playerId, {ref, kind, now}, w => {
     if (!w.seeded) return 'no-wallet';
@@ -104,10 +107,10 @@ export async function applyOp(db, playerId, op, now = Date.now()) {
           if (!Number.isFinite(op.at) || op.at > now + 300000 || op.at < now - PLAY.offlineMaxAgeMs) return 'too-old';
           if (offlineWins >= PLAY.offlineWinsPerDay) return 'rate-limited';
         }
-        const reward = STAGE_REWARDS[stage];
+        const reward = STAGE_REWARDS[stage] + Math.round(STAGE_REWARDS[stage] * bonus / 100);
         w.coins += reward; w.cleared = Math.max(w.cleared, stage + 1);
         if (nearToday(day, now)) { const d = dayEntry(w, day); d.wins += 1; d.summons += int(op.summons, 0, 300) ? op.summons : 0; }
-        return {detail: {stage, battle, run: op.run || null}, result: {coins: reward}, statements};
+        return {detail: {stage, battle, run: op.run || null, bonus}, result: {coins: reward}, statements};
       }
       case 'loss': {
         // Only feeds the "call friends 20 times" mission.

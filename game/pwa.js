@@ -1,6 +1,6 @@
 /* PWA controls. State stays in the schema 2 SaveStore, not Cache Storage. */
 'use strict';
-const PAGE_BUILD_ID='pwa-1.15.0';
+const PAGE_BUILD_ID='pwa-1.16.0';
 (()=>{
  const $=id=>document.getElementById(id),scope=new URL('./',location.href).href;
  const lockName='little-rescue-pwa-lifecycle:'+scope;

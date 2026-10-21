@@ -14,3 +14,10 @@
  .pwa-tools[open]{position:fixed;inset:8px;max-width:none;max-height:calc(100dvh - 16px);width:auto;overflow:auto;padding:14px}
  .file-button{max-width:100%;display:flex;flex-wrap:wrap;gap:6px}.file-button input{max-width:100%}
 }
+/* 1.16: phones play landscape only; the closed tools chip shrinks to an icon so it no longer covers the last lobby tabs (🎁 ของขวัญ). */
+@media (pointer:coarse) and (max-height:500px){
+ .pwa-tools:not([open]){padding:0;border-radius:50%}
+ .pwa-tools:not([open]) summary{font-size:0;width:44px;justify-content:center;list-style:none}
+ .pwa-tools:not([open]) summary::-webkit-details-marker{display:none}
+ .pwa-tools:not([open]) summary::before{content:'⚙️';font-size:20px}
+}

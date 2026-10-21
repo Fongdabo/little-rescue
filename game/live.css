@@ -1,0 +1,21 @@
+/* 1.13 live operations (live.js): event / maintenance strips on the start card, and the gift box dialog. */
+.live-banner{display:flex;flex-direction:column;gap:4px;width:100%;margin:12px 0 6px}
+.live-strip{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;margin:0;padding:5px 10px;border-radius:10px;background:#fff1c9;border:1px solid #e2bf6d;color:#6a4a12;font-size:12px;line-height:1.5;text-align:left}
+.live-strip span{font-size:15px}
+.live-strip b{font-size:12px}
+.live-strip small{flex-basis:100%;font-size:10.5px;color:#7d6431}
+.live-strip.maintenance{background:#ffe7df;border-color:#de9b84;color:#8b351c}
+.live-strip.maintenance small{color:#94503a}
+.gift-dialog .gift-list{list-style:none;margin:8px 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
+.gift-dialog .gift-list li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:12px;background:#f3ead4}
+.gift-dialog .gift-icon{font-size:24px}
+.gift-dialog .gift-list div{display:flex;flex-direction:column;gap:1px;min-width:0}
+.gift-dialog .gift-list b{font-size:13px;color:#493d31}
+.gift-dialog .gift-list small{font-size:10.5px;color:#6b604c;line-height:1.5}
+.gift-dialog .gift-reward{font-weight:800;font-size:13px;color:#a2621a}
+.gift-dialog .gift-list button.primary{width:auto;min-width:56px;background:linear-gradient(#78ab66,#4f8146);border-color:#3f6f3a;color:#fffef3;font-weight:800}
+.gift-dialog .gift-list button.primary:disabled{background:#cfd6c4;border-color:#b9c0ad;color:#6b7262}
+.gift-dialog .gift-empty{text-align:center;padding:14px 0;color:#7b7461}
+.gift-dialog .gift-note{font-size:10.5px;color:#7b7461}
+.gift-dialog .gift-note.warn{color:#9b3d22;font-weight:700}
+.gift-dialog form{display:flex;justify-content:flex-end;margin-top:8px}
