@@ -35,7 +35,7 @@
    - Variable name: `SAVES_DB` · Database: `little-rescue-saves` · ทำในหัวข้อ **Production**
    - สลับไป **Preview** แล้วเพิ่ม `SAVES_DB` = `little-rescue-saves-preview`
    - (`DB` เป็นของระบบสถิติ ห้ามใช้ชื่อซ้ำ)
-4. Deployments › กด Retry deployment รอบล่าสุด (หรือ merge PR ถัดไป) ให้ค่าใหม่มีผล
+4. ส่งขึ้นใหม่ให้ค่าใหม่มีผล: GitHub › Actions › **Check and deploy** › Run workflow › `main` (โปรเจกต์แบบ Direct Upload ไม่มีปุ่ม Retry ใน Cloudflare) หรือ merge PR ถัดไป
 5. เปิด `https://little-rescue.pages.dev/api/health` ต้องเห็น `{"ok":true,"cloud":true}`
 
 ตารางในฐานข้อมูลสร้างให้เองตอนใช้ครั้งแรก ไม่ต้องรัน SQL · โค้ดฝั่งเซิร์ฟเวอร์อยู่ที่ `functions/api/[[path]].js`
