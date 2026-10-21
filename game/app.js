@@ -195,6 +195,7 @@ function modal(){
  if(state==='won'||state==='lost')(claimed?$('replayBtn'):$('actionBtn')).focus();
 }
 function sync(){
+ window.SideviewStats?.observe(battle,meta.cleared);
  const pwaBlocked=!ready||actionPending||!window.SideviewPWA.canAct();$('actionBtn').disabled=pwaBlocked;$('replayBtn').disabled=pwaBlocked;$('prepareBtn').disabled=pwaBlocked;$('refillBtn').disabled=pwaBlocked;
  document.querySelectorAll('.roster-choice').forEach((el,i)=>{el.disabled=!ready||actionPending||battle.state!=='ready';el.setAttribute('aria-pressed',String(battle.selectedRoster.includes(i)))});
  $('homeText').textContent=`${Math.ceil(battle.homeHP)} / ${CONFIG.homeHP}`;$('enemyText').textContent=`${Math.ceil(battle.enemyHP)} / ${battle.enemyMaxHP}`;
@@ -391,5 +392,6 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    }finally{actionPending=false;storageNote();energy();sync()}
  }
 };
+window.SideviewStats?.begin(meta.cleared,matchMedia('(display-mode: standalone)').matches);
 stageHeading();mode();energy();sync();setInterval(energy,1000);requestAnimationFrame(frame);
 })();

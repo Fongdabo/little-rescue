@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#628758"><title>กู้การเปิดเกม · Little Rescue</title>
+<style>body{margin:0;background:#f4efdf;color:#554235;font:17px/1.7 Tahoma,sans-serif}main{max-width:660px;margin:7vh auto;padding:26px;background:#fff9eb;border:2px solid #c6a77e;border-radius:22px}h1{font-size:27px;line-height:1.4}button,a{font:inherit}button{border:1px solid #a58360;border-radius:13px;padding:11px 17px;margin:5px 5px 5px 0;background:#e7efd9;color:#405a37;cursor:pointer}button:disabled{opacity:.5;cursor:default}.primary{background:#628758;color:white}small{display:block;color:#80735e}#status{padding:13px;background:#f2e8ce;border-radius:12px;white-space:pre-line;min-height:3.4em}#version{font-size:13px}@media(max-width:720px){main{margin:16px;padding:20px}}</style></head>
+<body><main><small>Little Rescue · แก้การเปิดเกมซ้ำ</small><h1>กลับเข้าเกมโดยเก็บเซฟเดิม</h1><p>หน้านี้อัปเดตตัวเปิดเกมรุ่นใหม่ ไม่ล้างเซฟหรือข้อมูลในเครื่อง ใช้ขณะออนไลน์บนโดเมนเดิมที่เคยเล่น</p><p id="status" role="status" aria-live="polite">กำลังตรวจตัวเปิดเกม…</p><div><button id="checkBtn">ตรวจอัปเดต</button><button id="applyBtn" class="primary" disabled>อัปเดตและเปิดเกม</button><button id="openBtn" disabled>เปิดเกม</button><button id="exportBtn">ส่งออกเซฟสำรอง</button></div><p>ถ้ามีแท็บเกมอื่นเปิดอยู่ ให้จบรอบและรับรางวัล หรือปิดแท็บนั้นก่อน แล้วกลับมากดอัปเดตอีกครั้ง</p><small>ไม่ต้องล้างข้อมูลเว็บไซต์ ไม่ต้องลบแอป และไม่ต้องเริ่มเซฟใหม่</small><p id="version">เป้าหมาย pwa-1.12.0</p></main>
+<script>
+'use strict';
+(()=>{
+ const TARGET='pwa-1.12.0',scope=new URL('../',location.href).href,swURL=new URL('sw.js',scope).href,lockName='little-rescue-pwa-lifecycle:'+scope;
+ const $=id=>document.getElementById(id),status=text=>{$('status').textContent=text};
+ let registration=null,activeBuild=null,waitingBuild=null,held=false,frozen=null,releaseLease=null,leaseDone=null,applying=false,checking=false,ready=false;
+ const hasLocks=Boolean(navigator.locks?.request);
+ function sync(){
+  $('checkBtn').disabled=checking||applying||frozen!==null;
+  $('applyBtn').disabled=!ready||waitingBuild!==TARGET||!held||!hasLocks||applying||frozen!==null;
+  $('openBtn').disabled=activeBuild!==TARGET||applying||frozen!==null;
+  $('exportBtn').disabled=applying||frozen!==null;
+  $('version').textContent='เป้าหมาย '+TARGET+' · ใช้อยู่ '+(activeBuild||'กำลังตรวจ')+' · รออัปเดต '+(waitingBuild||'ไม่มี');
+ }
+ function acquire(){if(!hasLocks){held=true;return Promise.resolve()}return new Promise((resolve,reject)=>{leaseDone=navigator.locks.request(lockName,{mode:'shared'},async()=>{held=true;resolve();await new Promise(done=>{releaseLease=done});held=false});leaseDone.catch(reject)})}
+ function message(worker,data,timeout=5000){return new Promise((resolve,reject)=>{if(!worker)return reject(Error('ยังไม่พบตัวเปิดเกม'));const channel=new MessageChannel(),timer=setTimeout(()=>{channel.port1.close();reject(Error('รอตอบกลับนานเกินไป'))},timeout);channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();resolve(e.data)};worker.postMessage(data,[channel.port2])})}
+ async function refresh(){if(!registration)return;activeBuild=registration.active?(await message(registration.active,{type:'GET_STATUS'})).buildId:null;waitingBuild=registration.waiting?(await message(registration.waiting,{type:'GET_STATUS'})).buildId:null;sync()}
+ function describe(){if(activeBuild===TARGET)status('ตัวเปิดเกมพร้อมแล้ว กดเปิดเกมได้ เซฟเดิมยังอยู่');else if(waitingBuild===TARGET)status(hasLocks?'ดาวน์โหลดรุ่นใหม่ครบแล้ว กดอัปเดตและเปิดเกม':'ดาวน์โหลดรุ่นใหม่ครบแล้ว กรุณาปิดทุกแท็บของเกมและหน้านี้ แล้วเปิดเกมอีกครั้ง เพื่อให้ระบบเปิดรุ่นใหม่');else status('กำลังดาวน์โหลดตัวเปิดเกมรุ่นใหม่ รอสักครู่แล้วกดตรวจอัปเดตอีกครั้ง')}
+ function watch(worker){if(!worker)return;worker.addEventListener('statechange',()=>{if(['installed','activated','redundant'].includes(worker.state))refresh().then(()=>{if(!applying){if(worker.state==='redundant')status('ดาวน์โหลดอัปเดตไม่ครบ เซฟยังอยู่ ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง');else describe()}}).catch(()=>{})})}
+ async function thaw(nonce){if(frozen!==nonce)return;await acquire();if(frozen===nonce)frozen=null;applying=false;sync()}
+ navigator.serviceWorker?.addEventListener('message',event=>{
+  if(event.source?.scriptURL!==swURL)return;const data=event.data||{};
+  if(data.type==='PREPARE_UPDATE'){
+   const port=event.ports[0];if(typeof data.nonce!=='string'||!data.nonce||data.nonce.length>100||frozen!==null||!held||!ready){port?.postMessage({nonce:data.nonce,safe:false});return}
+   frozen=data.nonce;sync();releaseLease?.();Promise.resolve(leaseDone).then(()=>port?.postMessage({nonce:data.nonce,safe:true}));
+  }
+  if(data.type==='ABORT_UPDATE')thaw(data.nonce).catch(()=>status('เซฟยังอยู่ กรุณาปิดหน้านี้แล้วเปิดหน้ากู้อีกครั้ง'));
+  if(data.type==='ACTIVATION_DONE'){
+   if(data.error){status('เปิดตัวใหม่ยังไม่สมบูรณ์ เซฟยังอยู่ โปรดเปิดหน้ากู้อีกครั้งขณะออนไลน์');return}
+   if(data.buildId===TARGET&&frozen!==null&&data.nonce===frozen){location.replace(scope);return}
+   refresh().then(describe).catch(()=>{});
+  }
+ });
+ navigator.serviceWorker?.addEventListener('controllerchange',()=>refresh().then(()=>{if(!applying)describe()}).catch(()=>{}));
+ async function check(){if(checking||applying||frozen!==null)return;checking=true;sync();status('กำลังตรวจและดาวน์โหลดตัวเปิดเกม…');try{if(!registration){registration=await navigator.serviceWorker.register(swURL,{scope,updateViaCache:'none'});if(registration.scope!==scope)throw Error('ขอบเขตตัวเปิดเกมไม่ตรง');registration.addEventListener('updatefound',()=>watch(registration.installing))}watch(registration.installing);await registration.update();await refresh();describe()}catch{status('ยังตรวจอัปเดตไม่ได้ เซฟเดิมไม่ได้ถูกเปลี่ยน ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง')}finally{checking=false;sync()}}
+ $('checkBtn').addEventListener('click',check);
+ $('applyBtn').addEventListener('click',async()=>{if(!registration?.waiting||waitingBuild!==TARGET||!held||!hasLocks||applying||frozen!==null)return;applying=true;sync();status('กำลังตรวจทุกแท็บก่อนเปิดรุ่นใหม่…');try{const answer=await message(registration.waiting,{type:'APPLY_UPDATE',nonce:crypto.randomUUID()},15000);if(!answer.ok){applying=false;status('ยังอัปเดตไม่ได้ มีแท็บเกมที่กำลังเล่นหรือไม่ตอบกลับ กรุณาจบรอบและรับรางวัล หรือปิดแท็บอื่น แล้วลองอีกครั้ง');sync()}}catch{applying=false;status('ยังยืนยันการอัปเดตไม่ได้ เซฟยังอยู่ กรุณาปิดทุกแท็บเกมแล้วเปิดหน้ากู้อีกครั้ง');sync()}});
+ $('openBtn').addEventListener('click',()=>{if(activeBuild===TARGET&&!applying&&frozen===null)location.assign(scope)});
+ $('exportBtn').addEventListener('click',()=>{if(applying||frozen!==null)return;try{const raw=localStorage.getItem('little-rescue-sideview-save-v2');if(!raw){status('ยังไม่มีเซฟที่บันทึกไว้ ไม่มีข้อมูลถูกเปลี่ยน');return}JSON.parse(raw);const url=URL.createObjectURL(new Blob([raw],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='Little-Rescue-Recovery-Backup-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('ส่งออกสำเนาเซฟแล้ว เซฟในเครื่องยังเหมือนเดิม')}catch{status('ส่งออกไม่ได้ เซฟในเครื่องไม่ได้ถูกเปลี่ยน')}});
+ window.SideviewRecovery={snapshot:()=>({target:TARGET,scope,activeBuild,waitingBuild,held,frozen:frozen!==null,applying,ready})};
+ if(!('serviceWorker'in navigator)){status('เบราว์เซอร์นี้ไม่รองรับตัวเปิดเกม เซฟไม่ได้ถูกเปลี่ยน');sync();return}
+ acquire().then(()=>{ready=true;return check()}).catch(()=>{status('ยังขอสิทธิ์อัปเดตไม่ได้ กรุณาปิดแท็บเกมอื่นแล้วลองใหม่');sync()});sync();
+})();
+</script></body></html>

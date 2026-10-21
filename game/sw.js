@@ -74,6 +74,10 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v1120/index.html",
   "recover-v191/",
   "recover-v191/index.html",
+  "recover-v1110/",
+  "recover-v1110/index.html",
+  "recover-v1111/",
+  "recover-v1111/index.html",
   "role-icons.css",
   "role-icons.js",
   "rotate-hint.js",
@@ -81,6 +85,7 @@ const PRECACHE=/* PRECACHE_START */[
   "save-transfer.js",
   "skills.css",
   "stages.css",
+  "stats.js",
   "styles.css",
   "vehicle-preview.css",
   "victory-sequence.js"

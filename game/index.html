@@ -91,8 +91,9 @@
 <p>เกมเก่าที่เปิดจากไฟล์และเว็บที่ใช้ URL ต่างกันมีเซฟแยกกัน ย้ายเครื่องง่ายที่สุดด้วยปุ่ม ☁️ บัญชีและเซฟบนคลาวด์ หรือ เก็บไฟล์สำรองไว้ก่อนย้ายเครื่องหรือล้างข้อมูล</p>
 <div class="pwa-actions"><button id="exportSaveBtn" disabled>ส่งออกเซฟ JSON</button><label class="file-button">เลือกไฟล์เซฟ <input id="importSaveInput" type="file" accept=".json,application/json" disabled></label></div>
 <p id="transferStatus" role="status" aria-live="polite">นำเข้าได้ก่อนเริ่มหรือเมื่อจบรอบและรับรางวัลแล้วเท่านั้น</p>
+<p class="stats-note"><label><input id="statsToggle" type="checkbox" checked> ส่งสถิติการเล่นแบบไม่ระบุตัวตน</label> เช่น ด่านที่เล่น แพ้หรือชนะ และเวลาที่เล่น เพื่อช่วยปรับความยากของเกม ไม่มีชื่อ เซฟ หรือข้อมูลส่วนตัว ปิดได้ทุกเมื่อ</p>
 <dialog id="importDialog"><h2>ตรวจเซฟก่อนนำเข้า</h2><pre id="importPreview"></pre><p class="warning">การยืนยันจะแทนที่เซฟของเว็บนี้ เก็บไฟล์ส่งออกเดิมไว้ก่อน หากมีแท็บอื่นกำลังสู้ให้จบรอบก่อน</p><div class="pwa-actions"><button id="confirmImportBtn">ยืนยันแทนที่เซฟ</button><button id="cancelImportBtn">ยกเลิก</button></div></dialog>
-<p class="pwa-build">PWA ทดลอง 1.12.0 · สำรองเซฟบนคลาวด์ได้ (ปุ่ม ☁️) · ไม่มีเงินจริง · <a href="README-PWA-TH.txt">วิธีเปิดและข้อจำกัด</a></p></details>
+<p class="pwa-build">PWA ทดลอง 1.12.0 · สำรองเซฟบนคลาวด์ได้ (ปุ่ม ☁️) · ไม่มีเงินจริง · ส่งสถิติการเล่นแบบไม่ระบุตัวตน · <a href="README-PWA-TH.txt">วิธีเปิดและข้อจำกัด</a></p></details>
 </main>
 <div class="mobile-pause-space" aria-hidden="true"><span>พักได้ทุกเวลา</span></div>
 <script src="victory-sequence.js"></script>
@@ -110,6 +111,7 @@
 <script src="daily-missions.js"></script>
 <script src="summon.js"></script>
 <script src="lobby.js"></script>
+<script src="stats.js"></script>
 <script src="app.js"></script>
 <script src="cloud-save.js"></script>
 </body>
