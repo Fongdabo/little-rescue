@@ -170,7 +170,7 @@ async function confirm(db, cfg, claims, now, fetchImpl) {
 
 export async function status(db, cfg, playerId, now = Date.now(), fetchImpl = fetch) {
   const addresses = await contracts(db, cfg);
-  const base = {enabled: true, testnet: true, network: NETWORK, token: addresses.token, heroes: addresses.heroes,
+  const base = {enabled: true, testnet: true, network: NETWORK, contracts: addresses,
     ready: Boolean(addresses.token && addresses.heroes), rules: {dailyTokens: cfg.dailyTokens, heroStar: cfg.heroStar, symbol: 'tLRT'}};
   if (!playerId) return base;
   const linkRow = await db.prepare('SELECT address, verified FROM chain_links WHERE player_id = ?').bind(playerId).first();
