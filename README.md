@@ -25,9 +25,27 @@
 4. ถ้าชื่อโปรเจกต์ใน Cloudflare ไม่ใช่ `little-rescue`: แท็บ Variables เพิ่ม `CLOUDFLARE_PROJECT` = ชื่อโปรเจกต์
 5. Cloudflare › โปรเจกต์ › Settings › ดูว่า Production branch คือ `main`
 
+## เซฟบนคลาวด์ (ตั้งครั้งเดียว ตั้งแต่รุ่น 1.10.0)
+
+ปุ่ม ☁️ มุมขวาบนของหน้าเริ่มเกมจะขึ้นเมื่อ Cloudflare มีฐานข้อมูลให้แล้วเท่านั้น ถ้ายังไม่ตั้ง เกมเล่นได้ตามเดิมด้วยเซฟในเครื่อง
+
+1. Cloudflare › Storage & Databases › **D1 SQL Database** › Create › ชื่อ `little-rescue-saves` (Location: Asia-Pacific)
+2. (แนะนำ) สร้างอีกอันชื่อ `little-rescue-saves-preview` ไว้ให้ลิงก์ทดลอง จะได้ไม่ปนกับเซฟผู้เล่นจริง
+3. Workers & Pages › โปรเจกต์ `little-rescue` › Settings › **Bindings** › Add › D1 database
+   - Variable name: `DB` · Database: `little-rescue-saves` · ทำในหัวข้อ **Production**
+   - สลับไป **Preview** แล้วเพิ่ม `DB` = `little-rescue-saves-preview`
+4. Deployments › กด Retry deployment รอบล่าสุด (หรือ merge PR ถัดไป) ให้ค่าใหม่มีผล
+5. เปิด `https://little-rescue.pages.dev/api/health` ต้องเห็น `{"ok":true,"cloud":true}`
+
+ตารางในฐานข้อมูลสร้างให้เองตอนใช้ครั้งแรก ไม่ต้องรัน SQL · โค้ดฝั่งเซิร์ฟเวอร์อยู่ที่ `functions/api/[[path]].js`
+(ไฟล์ zip สำหรับอัปโหลดเองไม่มีส่วนนี้ ต้องส่งขึ้นผ่าน GitHub Actions)
+
+แนะนำเพิ่ม (ไม่บังคับ): Security › WAF › Rate limiting rules › จำกัด `/api/` เช่น 60 ครั้งต่อนาทีต่อ IP กันคนยิงสร้างบัญชีรัว ๆ
+
 ## กฎที่ห้ามพัง
 
 - เซฟผู้เล่น: `little-rescue-sideview-save-v2` (ห้ามเพิ่มฟิลด์ เวอร์ชันเก่าจะตัดทิ้ง) และ `little-rescue-meta-v1` (ด่าน/เลเวล)
+- บัญชีคลาวด์อยู่ใน `little-rescue-cloud-v1` (ไม่ใช่เซฟ) · เซฟในเครื่องคือตัวจริงที่เกมเล่น คลาวด์เป็นสำเนา
 - ห้ามย้ายเกมไปลิงก์อื่น (เช่น GitHub Pages) เพราะเบราว์เซอร์เก็บเซฟแยกตามลิงก์
 - ทุกรุ่นใหม่: เปลี่ยน `BUILD_ID` ใน `sw.js`, `PAGE_BUILD_ID` ใน `pwa.js`, `TARGET` ในทุก `recover-v*/`,
   เพิ่ม `recover-vXYZ/` ของรุ่นนั้น และเพิ่มไฟล์ใหม่ลงรายการ PRECACHE (`tools/check.mjs` เตือนให้ทุกข้อ)

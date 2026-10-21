@@ -11,6 +11,10 @@ The owner writes Thai; reply in Thai.
   `little-rescue-meta-v1` (`{v, cleared, levels[5], stage}`, app.js `readMeta`/`writeMeta`).
   Daily missions + 7-day login (1.8) use `little-rescue-daily-v1` (daily-missions.js); claims are written inside
   `savedAction` so they hold the save lock.
+- Cloud save (1.10): `functions/api/[[path]].js` (Pages Function, D1 bound as `DB`; no binding = 503 and the ☁️ chip
+  stays hidden). `cloud-save.js` uploads `{transfer, meta, daily}` with compare-and-swap `rev`; account in
+  `little-rescue-cloud-v1`. Restores go through `SideviewBridge.importCloud` (only when import is safe). Local save stays primary.
+  Test locally: `wrangler pages dev game --d1 DB=local` from the repo root.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).

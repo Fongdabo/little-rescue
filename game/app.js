@@ -14,12 +14,15 @@ battle.setRoster(initial.roster);
 // never widened, so an older open tab or an exported 1.6.x file stays valid.
 const metaKey='little-rescue-meta-v1';
 const metaDefaults=()=>({v:1,cleared:saves.read().progress.rescued?1:0,levels:UNITS.map(()=>1),stage:0});
+function cleanMeta(m){
+ if(m&&m.v===1&&Number.isInteger(m.cleared)&&Array.isArray(m.levels)&&m.levels.length===UNITS.length&&m.levels.every(l=>Number.isInteger(l)&&l>=1&&l<=LEVELS.max)){
+  const cleared=Math.max(0,Math.min(STAGES.length,m.cleared));
+  return {v:1,cleared,levels:m.levels.slice(),stage:Number.isInteger(m.stage)?Math.max(0,Math.min(cleared,STAGES.length-1,m.stage)):0};
+ }
+ return null;
+}
 function readMeta(){
- try{const m=JSON.parse(storage?.getItem(metaKey)||'null');
-  if(m&&m.v===1&&Number.isInteger(m.cleared)&&Array.isArray(m.levels)&&m.levels.length===UNITS.length&&m.levels.every(l=>Number.isInteger(l)&&l>=1&&l<=LEVELS.max)){
-   const cleared=Math.max(0,Math.min(STAGES.length,m.cleared));
-   return {v:1,cleared,levels:m.levels.slice(),stage:Number.isInteger(m.stage)?Math.max(0,Math.min(cleared,STAGES.length-1,m.stage)):0};
-  }}catch{}
+ try{const m=cleanMeta(JSON.parse(storage?.getItem(metaKey)||'null'));if(m)return m}catch{}
  return metaDefaults();
 }
 function writeMeta(){try{storage?.setItem(metaKey,JSON.stringify(meta));return true}catch{return false}}
@@ -352,7 +355,7 @@ window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,assetURL,toast,sa
 window.SideviewDaily.mount({savedAction,toast,canClaim:()=>ready&&!actionPending&&(battle.state==='ready'||battle.state==='lost'||(battle.state==='won'&&battle.claimed)),
  pay:(coins,cookies)=>{battle.progress.coins+=coins;if(cookies)bank.add(cookies);levelKey=''}});
 $('replayBtn').textContent=`เล่นอีกครั้ง · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;
-window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.9.1',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.9.1',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
+window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.10.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.10.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
 saves.subscribe(snapshot=>{const coins=battle.progress.coins,rescued=battle.progress.rescued;applySaved(snapshot);if(battle.state==='won'&&(coins!==battle.progress.coins||rescued!==battle.progress.rescued))renderedState='';energy();sync()});
 const importSafe=()=>ready&&!actionPending&&window.SideviewTransfer.canImport(battle.state,battle.claimed);
 window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refresh:sync,
@@ -364,6 +367,24 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    try{
      const receipt=await saves.mutate(draft=>{if(draft.revision!==expectedRevision)return false;accepted=true;return {...draft,...clean,revision:draft.revision}},{requireDurable:true});
      if(!accepted||!receipt.committed)return false;applySaved(receipt.snapshot,true);battle.setRoster(receipt.snapshot.roster);renderedState='';return true;
+   }finally{actionPending=false;storageNote();energy();sync()}
+ },
+ // 1.10 cloud save (cloud-save.js): the stage/level meta travels with the save; daily missions too.
+ meta:()=>readMeta(),
+ importCloud:async(transfer,cloudMeta,daily,now)=>{
+   if(!importSafe()||!window.SideviewPWA.canAct()||!saves.writable)return false;
+   const clean=window.SideviewTransfer.parse(JSON.stringify(transfer),{now}).save,nextMeta=cleanMeta(cloudMeta);
+   if(!nextMeta)return false;
+   actionPending=true;sync();let accepted=false;
+   try{
+     // Meta and daily are written inside the save lock, the same way daily claims are.
+     const receipt=await saves.mutate(draft=>{
+       try{storage.setItem(metaKey,JSON.stringify(nextMeta));if(daily)storage.setItem('little-rescue-daily-v1',JSON.stringify(daily))}catch{return false}
+       accepted=true;return {...draft,...clean,revision:draft.revision}},{requireDurable:true});
+     if(!accepted||!receipt.committed)return false;
+     applySaved(receipt.snapshot,true);battle.setRoster(receipt.snapshot.roster);
+     meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);stageHeading();
+     levelKey='';renderedState='';window.SideviewDaily.refresh();return true;
    }finally{actionPending=false;storageNote();energy();sync()}
  }
 };
