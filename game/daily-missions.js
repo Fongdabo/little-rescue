@@ -87,7 +87,7 @@
   button.innerHTML='<span aria-hidden="true">📋</span><span class="daily-text">ภารกิจ</span><span class="daily-badge" aria-hidden="true"></span>';
   button.title='ภารกิจรายวันและรางวัลเข้าเกม 7 วัน';button.setAttribute('aria-label','ภารกิจรายวัน');
   dialog=document.createElement('dialog');dialog.className='daily-dialog';dialog.setAttribute('aria-labelledby','dailyTitle');
-  dialog.innerHTML=`<h2 id="dailyTitle">ภารกิจรายวัน</h2>
+  dialog.innerHTML=`<form method="dialog"><button class="dialog-x" aria-label="ปิด" title="ปิด (Escape)" value="close">✕</button></form><h2 id="dailyTitle">ภารกิจรายวัน</h2>
    <p class="daily-sub">เข้าเกมทุกวัน รับรางวัลต่อเนื่อง 7 วัน</p><ol class="daily-login"></ol>
    <button type="button" class="primary" data-claim="login"></button>
    <h3>ภารกิจวันนี้</h3><ul class="daily-list"></ul><p class="daily-note"></p>
