@@ -98,7 +98,7 @@ export async function onRequestGet({ request, env }) {
          (SELECT pid, MIN(day) AS first, MAX(age = 1) AS d1, MAX(age = 7) AS d7, MAX(age >= 1) AS back
           FROM events WHERE test = ? AND day >= ? GROUP BY pid HAVING MIN(age) = 0)`,
       thaiDay(Date.now() - 864e5), thaiDay(Date.now() - 7 * 864e5), test, since),
-    q(`SELECT build, COUNT(DISTINCT pid) AS players FROM events WHERE test = ? AND day >= ? GROUP BY build ORDER BY build DESC`, test, since),
+    q(`SELECT build, COUNT(DISTINCT pid) AS players FROM events WHERE test = ? AND day >= ? GROUP BY build ORDER BY players DESC`, test, since),
     q(`SELECT COUNT(DISTINCT pid) AS players, COUNT(DISTINCT sid) AS sessions, COUNT(*) AS events FROM events WHERE test = ? AND day >= ?`, test, since),
   ])).map(r => r.results);
   return json({ days, since, today, test, daily, sessions, stages, furthest, retention: retention[0], builds, totals: totals[0] });
