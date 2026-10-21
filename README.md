@@ -25,15 +25,16 @@
 4. ถ้าชื่อโปรเจกต์ใน Cloudflare ไม่ใช่ `little-rescue`: แท็บ Variables เพิ่ม `CLOUDFLARE_PROJECT` = ชื่อโปรเจกต์
 5. Cloudflare › โปรเจกต์ › Settings › ดูว่า Production branch คือ `main`
 
-## เซฟบนคลาวด์ (ตั้งครั้งเดียว ตั้งแต่รุ่น 1.10.0)
+## เซฟบนคลาวด์ (ตั้งครั้งเดียว ตั้งแต่รุ่น 1.11.0)
 
 ปุ่ม ☁️ มุมขวาบนของหน้าเริ่มเกมจะขึ้นเมื่อ Cloudflare มีฐานข้อมูลให้แล้วเท่านั้น ถ้ายังไม่ตั้ง เกมเล่นได้ตามเดิมด้วยเซฟในเครื่อง
 
 1. Cloudflare › Storage & Databases › **D1 SQL Database** › Create › ชื่อ `little-rescue-saves` (Location: Asia-Pacific)
 2. (แนะนำ) สร้างอีกอันชื่อ `little-rescue-saves-preview` ไว้ให้ลิงก์ทดลอง จะได้ไม่ปนกับเซฟผู้เล่นจริง
 3. Workers & Pages › โปรเจกต์ `little-rescue` › Settings › **Bindings** › Add › D1 database
-   - Variable name: `DB` · Database: `little-rescue-saves` · ทำในหัวข้อ **Production**
-   - สลับไป **Preview** แล้วเพิ่ม `DB` = `little-rescue-saves-preview`
+   - Variable name: `SAVES_DB` · Database: `little-rescue-saves` · ทำในหัวข้อ **Production**
+   - สลับไป **Preview** แล้วเพิ่ม `SAVES_DB` = `little-rescue-saves-preview`
+   - (`DB` เป็นของระบบสถิติ ห้ามใช้ชื่อซ้ำ)
 4. Deployments › กด Retry deployment รอบล่าสุด (หรือ merge PR ถัดไป) ให้ค่าใหม่มีผล
 5. เปิด `https://little-rescue.pages.dev/api/health` ต้องเห็น `{"ok":true,"cloud":true}`
 

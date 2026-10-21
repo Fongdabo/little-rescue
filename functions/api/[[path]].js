@@ -1,5 +1,5 @@
-// Little Rescue cloud accounts and cloud save (1.10). Cloudflare Pages Function on the same origin as the game,
-// so nothing about where the game lives changes. Needs a D1 database bound as DB (see README "เซฟบนคลาวด์").
+// Little Rescue cloud accounts and cloud save (1.11). Cloudflare Pages Function on the same origin as the game,
+// so nothing about where the game lives changes. Needs a D1 database bound as SAVES_DB (see README "เซฟบนคลาวด์").
 // Without that binding every route answers 503 and the game keeps working with its local save only.
 //
 // Accounts are guest accounts: no email or password. A player gets
@@ -73,7 +73,7 @@ function validBundle(bundle) {
 }
 
 async function route(request, env, path) {
-  const db = env.DB, now = Date.now(), method = request.method;
+  const db = env.SAVES_DB, now = Date.now(), method = request.method;
   if (path === 'health' && method === 'GET') return json({ok: true, cloud: Boolean(db)});
   if (!db) return fail(503, 'cloud-not-configured');
   schemaReady = schemaReady || db.batch(SCHEMA.map(sql => db.prepare(sql))).catch(error => { schemaReady = null; throw error; });

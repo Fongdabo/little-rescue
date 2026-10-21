@@ -1,4 +1,4 @@
-/* 1.10: guest account + cloud save, backed by functions/api/[[path]].js on the same origin.
+/* 1.11: guest account + cloud save, backed by functions/api/[[path]].js on the same origin.
    The local save stays the one the game plays from (and works offline). The cloud is a copy:
    - after any change the bundle {save file, stage/level meta, daily missions} is uploaded with compare-and-swap,
    - a newer cloud copy from another device is never applied by itself; the player picks which one to keep,

@@ -1,4 +1,4 @@
-/* 1.10 cloud save (cloud-save.js): a chip in the top-right corner of the start/result card, and one dialog. */
+/* 1.11 cloud save (cloud-save.js): a chip in the top-right corner of the start/result card, and one dialog. */
 .cloud-chip{position:absolute;top:8px;right:10px;z-index:4;display:flex;align-items:center;gap:.3rem;padding:.3rem .7rem .3rem .45rem;border-radius:999px;background:#eef4ff;border:1px solid #bccbe6;color:#3d5579;font-size:.8rem;white-space:nowrap;line-height:1.3}
 .cloud-chip span{font-size:1.05rem}
 .cloud-chip small{font-size:.72rem;font-weight:700}
