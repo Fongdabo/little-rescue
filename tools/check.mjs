@@ -15,6 +15,13 @@ for (const f of readdirSync(GAME).filter(f => f.endsWith('.js'))) {
   catch (e) { fail(`${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
 
+// 1b. Cloudflare Pages Functions (play statistics endpoint) parse too
+const FUNCTIONS = new URL('../functions/api/', import.meta.url).pathname;
+for (const f of existsSync(FUNCTIONS) ? readdirSync(FUNCTIONS).filter(f => f.endsWith('.js')) : []) {
+  try { execFileSync(process.execPath, ['--check', join(FUNCTIONS, f)], { stdio: 'pipe' }); }
+  catch (e) { fail(`functions/api/${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
+}
+
 // 2. one build id everywhere: service worker, page, every recovery page
 const build = (read('sw.js').match(/const BUILD_ID='([^']+)'/) || [])[1];
 const page = (read('pwa.js').match(/const PAGE_BUILD_ID='([^']+)'/) || [])[1];
