@@ -87,6 +87,8 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v1125/index.html",
   "recover-v1130/",
   "recover-v1130/index.html",
+  "recover-v1140/",
+  "recover-v1140/index.html",
   "recover-v191/",
   "recover-v191/index.html",
   "recover-v1110/",
