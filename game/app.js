@@ -29,6 +29,7 @@ const pwaAssetMap={"background.png":"background.webp","heroes-v2/hero-guard-fong
 const assetURL=file=>window.EMBEDDED_ASSETS?.[file]||'assets/'+(pwaAssetMap[file]||file);
 const canvas=$('game'),ctx=canvas.getContext('2d');
 const images={},cards=[];
+let fluxRateText='',seenEvent=0,seenRun=-1,blastFlash=0;
 let ready=false,last=performance.now(),toastUntil=0,renderedState='',lastRun=0,lastClaim=false,actionPending=false,appliedRevision=initial.revision;
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
 let reduced=motionPreference.matches;
@@ -67,6 +68,10 @@ function energy(){bank.refresh();$('energyText').textContent=`${bank.value} / ${
 function mode(){const auto=battle.mode==='auto';['autoBtn','readyAutoBtn'].forEach(id=>$(id).setAttribute('aria-pressed',String(auto)));['manualBtn','readyManualBtn'].forEach(id=>$(id).setAttribute('aria-pressed',String(!auto)));$('modeHint').textContent=auto?'Auto · ทีมเรียกเพื่อนให้ ด้วยต้นทุนและคูลดาวน์เดียวกัน':'Manual · แตะเรียกเพื่อนเอง ทีมเดินและโจมตีอัตโนมัติ'}
 function setMode(value){battle.setMode(value);mode()}
 function summon(index){if(!battle.summon(index)&&battle.state==='running')toast(battle.flux<UNITS[index].cost?'ละอองใบไม้ยังไม่พอ รอฟื้นสักครู่':'เพื่อนกำลังเตรียมตัว หรือทีมในสนามเต็มแล้ว');sync()}
+// 1.8 field skills: production upgrade (paid in flux) and the camper van blast. Both reset every battle.
+function upgradeFlux(){if(battle.state!=='running')return;const cost=battle.fluxUpgradeCost;if(battle.upgradeFlux())toast(`ผลิตละอองเร็วขึ้น · ขั้น ${battle.fluxLevel}`);else toast(cost===null?'อัปการผลิตครบทุกขั้นแล้ว':`ต้องใช้ละอองใบไม้ ${cost}`);sync()}
+function fireBlast(){if(battle.state!=='running')return;if(!battle.fireBlast())toast('ปืนใหญ่กำลังชาร์จ');sync()}
+$('fluxUpBtn').addEventListener('click',upgradeFlux);$('blastBtn').addEventListener('click',fireBlast);
 UNITS.forEach((u,index)=>{
  const btn=document.createElement('button');btn.className='unit-card';btn.disabled=true;btn.dataset.unit=String(index);btn.setAttribute('aria-label',`เรียก ${u.name} ใช้ละอองใบไม้ ${u.cost}`);
  btn.innerHTML=`<span class="unit-key">${index+1}</span><span class="cooldown"></span><img src="${assetURL(u.asset)}" alt=""><span class="unit-name">${u.name}</span><span class="unit-role">${u.role||'เพื่อนร่วมทีม'}</span><span class="unit-cost">❧ ${u.cost}</span><span class="availability">พร้อมเมื่อเริ่มด่าน</span>`;
@@ -103,6 +108,8 @@ document.addEventListener('keydown',event=>{
  if(event.repeat||event.ctrlKey||event.altKey||event.metaKey||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
  if(event.key==='p'||event.key==='P'||event.key==='Escape'){event.preventDefault();togglePause()}
  if(/^[1-5]$/.test(event.key)){event.preventDefault();summon(Number(event.key)-1)}
+ if(event.key==='u'||event.key==='U'){event.preventDefault();upgradeFlux()}
+ if(event.key==='b'||event.key==='B'){event.preventDefault();fireBlast()}
 });
 document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden&&['running','advancing'].includes(battle.state)){battle.pause();sync()}});
 function stageHeading(){const st=battle.stage;document.querySelector('.level-number').textContent=String(st.number).padStart(2,'0');document.querySelector('.level-heading h2').textContent=st.name;document.title=`${st.name} • ภารกิจช่วยเพื่อน`;$('battlefield').dataset.grade=st.grade}
@@ -127,10 +134,12 @@ async function levelUp(index){
  const lv=battle.levels[index],cost=levelCost(lv);if(lv>=LEVELS.max)return;
  const ok=await savedAction(()=>{if(battle.state!=='ready'||battle.progress.coins<cost){toast('เหรียญยังไม่พอ ชนะด่านเพื่อรับเหรียญ');return false}battle.progress.coins-=cost;return true});
  if(!ok)return;meta=readMeta();meta.levels[index]=Math.min(LEVELS.max,meta.levels[index]+1);
- if(!writeMeta())toast('บันทึกเลเวลไม่สำเร็จ');battle.setLevels(meta.levels);toast(`${UNITS[index].name} เลเวล ${battle.levels[index]} แล้ว!`);levelKey='';sync();
+ if(!writeMeta())toast('บันทึกเลเวลไม่สำเร็จ');battle.setLevels(meta.levels);toast(`${UNITS[index].name} เลเวล ${battle.levels[index]} แล้ว!`);levelKey='';window.SideviewDaily.bump('levelups');sync();
 }
+let countedWin=0;
 function markCleared(){
  if(battle.state!=='won'||!battle.claimed)return;
+ if(countedWin!==battle.runId){countedWin=battle.runId;window.SideviewDaily.bump('wins')}
  meta=readMeta();const next=battle.stageIndex+1;
  if(next>meta.cleared){meta.cleared=Math.min(STAGES.length,next);writeMeta();if(next<STAGES.length)toast(`ปลดล็อกด่าน ${String(next+1).padStart(2,'0')} · ${STAGES[next].name} แล้ว!`)}
  levelKey='';
@@ -140,9 +149,12 @@ function refreshMeta(){
  if(key===levelKey)return;levelKey=key;renderStages();renderLevels();$('coinText').textContent=battle.progress.coins.toLocaleString('th-TH');
 }
 window.addEventListener('storage',event=>{if(event.key!==metaKey)return;meta=readMeta();if(battle.state==='ready'){battle.setLevels(meta.levels);if(battle.stageIndex>meta.cleared)battle.setStage(meta.stage);stageHeading()}levelKey='';sync()});
+let countedRun=0;
 function modal(){
  const state=battle.state,claimed=battle.claimed;
  if(renderedState===state&&lastRun===battle.runId&&lastClaim===claimed)return;
+ if(['won','lost'].includes(state)&&countedRun!==battle.runId){countedRun=battle.runId;if(battle.metrics.summons)window.SideviewDaily.bump('summons',battle.metrics.summons)}
+ window.SideviewDaily.refresh();
  renderedState=state;lastRun=battle.runId;lastClaim=claimed;
  $('overlay').hidden=['running','advancing'].includes(state);$('modal').classList.toggle('won',state==='won');$('rewardArea').hidden=state!=='won';$('replayBtn').hidden=!(state==='won'&&claimed);$('actionBtn').hidden=state==='won'&&claimed;
  $('preflightControls').hidden=state!=='ready';
@@ -168,7 +180,14 @@ function sync(){
  document.querySelectorAll('.roster-choice').forEach((el,i)=>{el.disabled=!ready||actionPending||battle.state!=='ready';el.setAttribute('aria-pressed',String(battle.selectedRoster.includes(i)))});
  $('homeText').textContent=`${Math.ceil(battle.homeHP)} / ${CONFIG.homeHP}`;$('enemyText').textContent=`${Math.ceil(battle.enemyHP)} / ${battle.enemyMaxHP}`;
  $('homeFill').style.width=`${Math.max(0,battle.homeHP/CONFIG.homeHP*100)}%`;$('enemyFill').style.width=`${Math.max(0,battle.enemyHP/battle.enemyMaxHP*100)}%`;
- $('fluxText').textContent=`${Math.floor(battle.flux)} / ${CONFIG.fluxMax}`;$('fluxFill').style.width=`${battle.flux/CONFIG.fluxMax*100}%`;
+ $('fluxText').textContent=`${Math.floor(battle.flux)} / ${battle.fluxCap}`;$('fluxFill').style.width=`${battle.flux/battle.fluxCap*100}%`;
+ const rate=`ฟื้น +${+battle.fluxRate.toFixed(1)} ต่อวินาที`;if(fluxRateText!==rate){fluxRateText=rate;document.querySelector('.flux-panel small').textContent=rate}
+ const live=battle.state==='running',upCost=battle.fluxUpgradeCost,charge=Math.min(1,battle.blastCharge/CONFIG.blastChargeTime);
+ $('fieldSkills').hidden=!['running','paused'].includes(battle.state);
+ $('fluxUpBtn').disabled=!live||upCost===null||battle.flux<upCost;$('fluxUpBtn').querySelector('b').textContent=`ขั้น ${battle.fluxLevel}`;
+ $('fluxUpBtn').querySelector('small').textContent=upCost===null?'สูงสุด':`❧ ${upCost}`;
+ $('blastBtn').disabled=!live||!battle.blastReady;$('blastBtn').classList.toggle('ready',battle.blastReady);
+ $('blastBtn').style.setProperty('--charge',String(charge));$('blastBtn').querySelector('small').textContent=battle.blastReady?'พร้อมยิง!':`${Math.round(charge*100)}%`;
  const t=Math.max(0,Math.ceil(battle.remaining));$('timeText').textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
  $('pauseBtn').disabled=!['running','paused','advancing'].includes(battle.state);$('pauseBtn').textContent=battle.state==='paused'?'▶':'Ⅱ';$('pauseBtn').setAttribute('aria-label',battle.state==='paused'?'เล่นต่อ':'หยุดพัก');
  $('teamCount').textContent=`${battle.progress.rescued?1:0} / 1`;
@@ -239,8 +258,8 @@ function draw(){
  all.sort((a,b)=>a.x-b.x).forEach((u,i)=>{
   const serial=Number(String(u.id).split('-').at(-1))||i,spec=(u.team?UNITS:ENEMIES)[u.index||0],asset=u.asset||spec.asset,rig=rigs.get(asset);
   if(u.boarded)return;
-  const baseHeight=u.team?({guard:110,agile:116,ranged:108,helper:94,mage:112}[u.classId]||108):100;
-  const boarding=Math.max(0,Math.min(1,u.boardingProgress||0)),rescue=u.isRescuedFriend?Math.max(0,Math.min(1,u.rescueProgress||0)):1,ratio=rig?.aspect||1,width=Math.min(155,baseHeight*ratio)*(1-boarding*.25)*(u.isRescuedFriend?.62+.38*rescue:1),height=width/ratio;
+  const scale=u.scale||1,baseHeight=(u.team?({guard:110,agile:116,ranged:108,helper:94,mage:112}[u.classId]||108):100)*scale;
+  const boarding=Math.max(0,Math.min(1,u.boardingProgress||0)),rescue=u.isRescuedFriend?Math.max(0,Math.min(1,u.rescueProgress||0)):1,ratio=rig?.aspect||1,width=Math.min(155*scale,baseHeight*ratio)*(1-boarding*.25)*(u.isRescuedFriend?.62+.38*rescue:1),height=width/ratio;
   const pose=u.phase==='defeat'?{phase:'defeat',progress:u.progress,time:animator.time}:animator.pose(u);if(pose.hidden)return;
   const naturalFoot=u.isRescuedFriend?315+(foot-315)*rescue:foot+(serial%3)*9;
   // Each lane reaches the same real door sill rather than a fixed fake rise.
@@ -252,6 +271,7 @@ function draw(){
   actorById.set(u.id,{...record,unit:u});renderedActors.push(record);
   if(u.phase==='defeat'||u.victoryAction)return;
   const max=u.maxHP||u.maxHp||100,hp=u.hp/max,bar={x:u.x-26,y:y-height*compress-13,width:52,height:5};round(bar.x,bar.y,bar.width,bar.height,3,'#fff5d8');round(bar.x,bar.y,52*Math.max(0,Math.min(1,hp)),5,3,u.team?'#6caa77':'#d58467');record.hpBar={...bar,fillDirection:'left-to-right',value:u.hp,max};
+  if(u.boss){ctx.save();ctx.font='bold 15px Mali,Tahoma,sans-serif';ctx.textAlign='center';ctx.fillStyle='#fff5d8';ctx.strokeStyle='#5b2f2a';ctx.lineWidth=4;const label='👑 '+u.name;ctx.strokeText(label,u.x,bar.y-8);ctx.fillText(label,u.x,bar.y-8);ctx.restore()}
   const iconSize=12*W/Math.max(1,canvas.clientWidth),icon={classId:u.classId||spec.classId,x:u.x-26-iconSize*.85,y:bar.y-3*compress,size:iconSize,mirrored:false};ctx.save();ctx.translate(icon.x,icon.y);ctx.scale(1,compress);roleIcons.draw(ctx,icon.classId,0,0,iconSize);ctx.restore();record.classIcon=icon;
  });
  for(const base of renderedBases)actorById.set(base.id,base);
@@ -265,11 +285,23 @@ function draw(){
  });
  for(const id of shotOrigins.keys())if(!flying.has(id))shotOrigins.delete(id);
  vfx.draw(ctx,{actors:[...renderedActors,...renderedBases],projectiles:renderedProjectiles,compress,foot,reduced});
+ if(blastFlash>0){const a=Math.min(1,blastFlash/.45),grow=1-a,endY=foot-60*compress;ctx.save();ctx.globalCompositeOperation='screen';ctx.lineCap='round';
+  for(const [width,alpha,color] of [[46,.28,'#ffb84d'],[22,.55,'#ffd977'],[7,.95,'#fffbe8']]){ctx.globalAlpha=alpha*a;ctx.strokeStyle=color;ctx.lineWidth=width*(0.7+0.3*a);ctx.beginPath();ctx.moveTo(vehicleMuzzle.x,vehicleMuzzle.y);ctx.lineTo(W-10,endY);ctx.stroke()}
+  for(const e of battle.enemies){const y=foot-45*compress*(e.scale||1),r=(18+46*grow)*(e.scale||1);ctx.globalAlpha=.7*a;const burst=ctx.createRadialGradient(e.x,y,2,e.x,y,r);burst.addColorStop(0,'#fffbe8');burst.addColorStop(.5,'#ffcf6a');burst.addColorStop(1,'rgba(255,170,80,0)');ctx.fillStyle=burst;ctx.beginPath();ctx.arc(e.x,y,r,0,7);ctx.fill()}
+  ctx.globalAlpha=.12*a;ctx.fillStyle='#fff3c4';ctx.fillRect(0,0,W,H);ctx.restore()}
  if(doorOpen)doorway(true);
  if(battle.state==='ready'){for(const [spec,x,facing]of [[UNITS[0],220,1],[ENEMIES[0],965,-1]]){const ratio=rigs.get(spec.asset)?.aspect||1;character(spec.asset,x,428,Math.min(155,115*ratio),Math.min(155,115*ratio)/ratio,{facing})}}
 
 }
-function frame(now){const started=performance.now(),dt=Math.min(.1,Math.max(0,(now-last)/1000));last=now;if(ready)battle.update(dt);animator.update(battle,dt);vfx.update(battle,dt);sync();draw();const cost=performance.now()-started;frameCosts.push(cost);if(frameCosts.length>600)frameCosts.shift();if(now>toastUntil)$('toast').classList.remove('show');requestAnimationFrame(frame)}
+function fieldEvents(dt){
+ if(seenRun!==battle.runId){seenRun=battle.runId;seenEvent=0;blastFlash=0}
+ blastFlash=Math.max(0,blastFlash-dt);
+ for(const e of battle.events){if(e.seq<=seenEvent)continue;seenEvent=e.seq;
+  if(e.type==='boss-arrive')toast(`👑 ${e.name} ออกมาแล้ว! ใช้ปืนใหญ่รถแคมป์ช่วย`);
+  if(e.type==='base-blast')blastFlash=reduced?.25:.6;
+ }
+}
+function frame(now){const started=performance.now(),dt=Math.min(.1,Math.max(0,(now-last)/1000));last=now;if(ready)battle.update(dt);fieldEvents(dt);animator.update(battle,dt);vfx.update(battle,dt);sync();draw();const cost=performance.now()-started;frameCosts.push(cost);if(frameCosts.length>600)frameCosts.shift();if(now>toastUntil)$('toast').classList.remove('show');requestAnimationFrame(frame)}
 const assetFiles=[...new Set(['background.png','background-clean-left-v1.png','base-vehicle-large-v1.svg','base-deployed-large-v1.svg','cannon-support-v1.svg',...UNITS.map(u=>u.asset),...ENEMIES.map(u=>u.asset)])];
 function composeSceneBackground(){
  const original=images.background,patch=images['background-clean-left-v1.png'];
@@ -287,9 +319,10 @@ storageNote();
 // Read-only diagnostic snapshots for independent QA; no force-win/debug buttons.
 $('balanceNote').textContent=`ตัวเลขทั้งหมดเป็นค่าตัวอย่างที่แก้ได้ใน engine.js: คุกกี้ดาวสูงสุด ${CONFIG.energyMax} / ค่าเข้า ${CONFIG.entryCost} / ฟื้น 1 ทุก ${CONFIG.refillMs/60000} นาที / เวลา ${CONFIG.duration} วินาที / ละอองใบไม้เริ่ม ${CONFIG.fluxInitial} สูงสุด ${CONFIG.fluxMax} ฟื้น +${CONFIG.fluxRegen} ต่อวินาที / รางวัลเหรียญ ${CONFIG.rewardCoins} และคุกกี้ดาว ${CONFIG.rewardCookies} รับได้หนึ่งครั้งต่อรอบที่ชนะ การพัก สลับโหมด และกดเริ่มซ้ำไม่เสียเพิ่ม`;
 document.querySelector('.energy-copy small').textContent=`ใช้เข้าด่านเท่านั้น · ครั้งละ ${CONFIG.entryCost} ชิ้น`;
-document.querySelector('.flux-panel small').textContent=`ฟื้น +${CONFIG.fluxRegen} ต่อวินาที`;
+window.SideviewDaily.mount({savedAction,toast,canClaim:()=>ready&&!actionPending&&(battle.state==='ready'||battle.state==='lost'||(battle.state==='won'&&battle.claimed)),
+ pay:(coins,cookies)=>{battle.progress.coins+=coins;if(cookies)bank.add(cookies);levelKey=''}});
 $('replayBtn').textContent=`เล่นอีกครั้ง · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;
-window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.7.2',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.7.2',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
+window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.8.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.8.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
 saves.subscribe(snapshot=>{const coins=battle.progress.coins,rescued=battle.progress.rescued;applySaved(snapshot);if(battle.state==='won'&&(coins!==battle.progress.coins||rescued!==battle.progress.rescued))renderedState='';energy();sync()});
 const importSafe=()=>ready&&!actionPending&&window.SideviewTransfer.canImport(battle.state,battle.claimed);
 window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refresh:sync,

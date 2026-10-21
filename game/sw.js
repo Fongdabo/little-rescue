@@ -1,6 +1,6 @@
 /* Buildless, scope-isolated PWA. No game save is stored in this cache. */
 'use strict';
-const BUILD_ID='pwa-1.7.2';
+const BUILD_ID='pwa-1.8.0';
 const SCOPE=self.registration.scope;
 const PREFIX='little-rescue-pwa:'+SCOPE+':';
 const CACHE_NAME=PREFIX+BUILD_ID;
@@ -35,13 +35,16 @@ const PRECACHE=/* PRECACHE_START */[
   "character-art.js",
   "character-roles.css",
   "character-vfx.js",
+  "daily-missions.js",
   "engine.js",
+  "fit-screen.css",
   "icons/apple-touch-icon.png",
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/icon.svg",
   "icons/maskable-512.png",
   "index.html",
+  "install-card.js",
   "manifest.webmanifest",
   "mobile-layout.css",
   "play-ui.css",
@@ -57,14 +60,15 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v171/index.html",
   "recover-v172/",
   "recover-v172/index.html",
+  "recover-v180/",
+  "recover-v180/index.html",
   "role-icons.css",
   "role-icons.js",
+  "rotate-hint.js",
   "save-store.js",
   "save-transfer.js",
+  "skills.css",
   "stages.css",
-  "fit-screen.css",
-  "install-card.js",
-  "rotate-hint.js",
   "styles.css",
   "vehicle-preview.css",
   "victory-sequence.js"
