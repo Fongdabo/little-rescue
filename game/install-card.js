@@ -20,7 +20,7 @@
   :isAndroid
   ?['เปิดเกมนี้ด้วย <b>Chrome</b>','กดปุ่ม <b>⋮</b> มุมขวาบน','กด <b>ติดตั้งแอป</b> หรือ <b>เพิ่มลงในหน้าจอหลัก</b>','กด <b>ติดตั้ง</b>']
   :['เปิดเกมนี้ด้วย <b>Chrome</b> หรือ <b>Edge</b>','กดไอคอน <b>ติดตั้ง</b> (จอมีลูกศร) ท้ายช่องที่อยู่เว็บ หรือเมนู <b>⋮</b> › <b>ติดตั้ง Little Rescue</b>','กด <b>ติดตั้ง</b> เกมจะเปิดเป็นหน้าต่างของตัวเอง และมีไอคอนบนเดสก์ท็อป'];
- dialog.innerHTML=`<h2 id="installTitle">ติดตั้ง Little Rescue</h2>
+ dialog.innerHTML=`<form method="dialog"><button class="dialog-x" aria-label="ปิด" title="ปิด (Escape)" value="close">✕</button></form><h2 id="installTitle">ติดตั้ง Little Rescue</h2>
   <p>ติดตั้งแล้วจะมีไอคอนเกม เปิดเต็มจอเหมือนแอป เล่นได้แม้ไม่มีเน็ต และเซฟเดิมยังอยู่ครบ</p>
   <ol>${steps.map(s=>`<li>${s}</li>`).join('')}</ol>
   <p class="install-note">เล่นบนคอม: กด 1–5 เรียกเพื่อน · U อัปการผลิต · B ปืนใหญ่ · Q W E R ไอเทม · P หรือ Esc หยุดพัก</p>

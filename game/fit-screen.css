@@ -414,7 +414,11 @@
   }
 }
 
-/* ---------- 1.7.2: "rotate your phone" before a battle (rotate-hint.js) ---------- */
+/* ---------- 1.7.2 / 1.12.5: "rotate your phone", phones are landscape only (rotate-hint.js) ---------- */
+html:has(.rotate-hint:not([hidden])) {
+  overflow: hidden;
+}
+
 .rotate-hint {
   position: fixed;
   inset: 0;

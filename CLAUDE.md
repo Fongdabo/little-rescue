@@ -23,6 +23,10 @@ The owner writes Thai; reply in Thai.
   `little-rescue-wallet-v1` and adopts the server's numbers via `SideviewBridge.applyWallet` when the queue is empty.
   Any new way to earn or spend coins must also `SideviewWallet.record(...)` it and get a matching op in play.js.
   API: `docs/server-wallet.md`.
+- Real-money shop (1.14): `functions/api/shop/[[path]].js` (Stripe Checkout, THB, card + PromptPay; webhook verifies the
+  HMAC signature and the order amount). Gems live only in the server wallet (`functions/_lib/wallet.js`), never in a local key;
+  `little-rescue-shop-v1` only remembers the last opened order. Live keys stay blocked unless `SHOP_LIVE=1`. Packs are
+  `PACKS` in that file; gems buy summons at the coin rates. Test: README "ร้านค้าเพชร".
 - Admin + live ops (1.16): `game/admin.html` → `functions/api/admin/[[path]].js` (secret `ADMIN_KEY` ≥ 24 chars, Bearer;
   10 bad keys/15 min/IP → 429; every action and every player view goes to `admin_log`). Gift box, events, maintenance live
   in `functions/_lib/live.js` (tables in SAVES_DB). Players: `GET /api/live` (public), `GET/POST /api/gifts` (device token).
@@ -40,7 +44,8 @@ The owner writes Thai; reply in Thai.
 - `node tools/check.mjs` must pass (CI runs it).
 - Test in Chromium (`/opt/pw-browsers/chromium`): serve `game/` with `python3 -m http.server`, win a stage in the
   previous build, open the new build on the same origin, check the save and stage meta, then reopen the old build.
-- Layout: phones portrait keep the 1.6.6 layout; `fit-screen.css` (loaded last) fits phone landscape and computers
+- Layout: since 1.12.5 phones are landscape only (rotate-hint.js covers portrait and pauses a battle; the 1.6.6 portrait
+  CSS stays for tablets/old builds); `fit-screen.css` (loaded last) fits phone landscape and computers
   to one screen. Check 390×844, 360×640, 844×390, 820×1180, 1366×768, 1920×1080.
 
 ## Game data

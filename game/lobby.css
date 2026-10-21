@@ -9,7 +9,8 @@
 #preflightControls[data-tab="team"] > :not(:nth-child(4), :nth-child(5), :nth-child(6)),
 #preflightControls[data-tab="upgrade"] > :not(:nth-child(7), :nth-child(8)),
 #preflightControls[data-tab="book"] > :not(.hero-book),
-#preflightControls[data-tab="summon"] > :not(.summon-panel) {
+#preflightControls[data-tab="summon"] > :not(.summon-panel),
+#preflightControls[data-tab="shop"] > :not(.shop-panel) {
   display: none !important;
 }
 

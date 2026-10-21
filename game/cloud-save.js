@@ -154,7 +154,7 @@
  }
  function render(open){
   if(!dialog)return;const state=readState(),esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
-  let html='<h2>☁️ บัญชีและเซฟบนคลาวด์</h2>';
+  let html='<button type="button" class="dialog-x" aria-label="ปิด" title="ปิด (Escape)" data-act="close">✕</button><h2>☁️ บัญชีและเซฟบนคลาวด์</h2>';
   if(conflict){
    html+=`<p>เซฟในเครื่องนี้กับบนคลาวด์ไม่ตรงกัน เลือกอันที่จะเก็บ อีกอันจะถูกแทนที่</p>
     <div class="cloud-choice"><button type="button" data-act="cloud"><b>ใช้เซฟจากคลาวด์</b><small>${esc(summary(conflict.bundle))}</small><small>บันทึก ${esc(when(conflict.savedAt))}</small></button>
@@ -214,6 +214,6 @@
   setInterval(sync,15000);
   start();
  }
- window.SideviewCloud={KEY,sync,pull,mount,paint,get enabled(){return enabled},get conflict(){return conflict},_fingerprint:fingerprint};
+ window.SideviewCloud={KEY,sync,pull,mount,open:()=>render(true),paint,get enabled(){return enabled},get conflict(){return conflict},_fingerprint:fingerprint};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();

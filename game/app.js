@@ -108,6 +108,15 @@ $('autoBtn').addEventListener('click',()=>setMode('auto'));
 $('readyManualBtn').addEventListener('click',()=>setMode('manual'));
 $('readyAutoBtn').addEventListener('click',()=>setMode('auto'));
 $('refillBtn').addEventListener('click',()=>savedAction(()=>{bank.add(CONFIG.energyMax);toast('เติมคุกกี้ดาวฟรีแล้ว · สำหรับทดลอง');return true}));
+// 1.12.4: the start screen and the pause menu get a ✕. Closing the start screen shows the page behind it
+// (header, backup panel, help); a button on the field brings it back. Nothing is spent or saved by either.
+let lobbyClosed=false;
+function setLobby(closed){
+ if(battle.state!=='ready')return;lobbyClosed=closed;$('overlay').hidden=closed;$('lobbyOpenBtn').hidden=!closed;
+ (closed?$('lobbyOpenBtn'):$('actionBtn')).focus();
+}
+$('modalCloseBtn').addEventListener('click',()=>{if(battle.state==='ready')setLobby(true);else if(battle.state==='paused')togglePause()});
+$('lobbyOpenBtn').addEventListener('click',()=>setLobby(false));
 function togglePause(){if(battle.pause()){sync();if(battle.state==='paused')$('actionBtn').focus()}}
 $('pauseBtn').addEventListener('click',togglePause);
 $('actionBtn').addEventListener('click',()=>{
@@ -152,6 +161,7 @@ $('exitBtn').addEventListener('click',()=>{
 $('prepareBtn').addEventListener('click',()=>{if(!ready||actionPending||!window.SideviewPWA.canAct())return;if(battle.prepareReplay()){applySaved(saves.read());renderedState='';sync();$('rosterPicker').querySelector('button').focus()}});
 document.addEventListener('keydown',event=>{
  if(event.repeat||event.ctrlKey||event.altKey||event.metaKey||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
+ if(event.key==='Escape'&&battle.state==='ready'){if(!document.querySelector('dialog[open]')){event.preventDefault();setLobby(!lobbyClosed)}return}
  if(event.key==='p'||event.key==='P'||event.key==='Escape'){event.preventDefault();togglePause()}
  if(/^[1-5]$/.test(event.key)){event.preventDefault();summon(Number(event.key)-1)}
  if(event.key==='u'||event.key==='U'){event.preventDefault();upgradeFlux()}
@@ -203,7 +213,7 @@ function modal(){
  if(['won','lost'].includes(state))countRun();
  window.SideviewDaily.refresh();window.SideviewLobby.refresh();
  renderedState=state;lastRun=battle.runId;lastClaim=claimed;
- $('overlay').hidden=['running','advancing'].includes(state);$('modal').classList.toggle('won',state==='won');$('rewardArea').hidden=state!=='won';$('replayBtn').hidden=!(state==='won'&&claimed);$('actionBtn').hidden=state==='won'&&claimed;
+ if(state!=='ready')lobbyClosed=false;$('overlay').hidden=['running','advancing'].includes(state)||state==='ready'&&lobbyClosed;$('lobbyOpenBtn').hidden=!(state==='ready'&&lobbyClosed);$('modalCloseBtn').hidden=!['ready','paused'].includes(state);$('modal').classList.toggle('won',state==='won');$('rewardArea').hidden=state!=='won';$('replayBtn').hidden=!(state==='won'&&claimed);$('actionBtn').hidden=state==='won'&&claimed;
  $('preflightControls').hidden=state!=='ready';
  $('prepareBtn').hidden=!(state==='lost'||state==='won'&&claimed);
  leaveAsk=null;$('retryBtn').hidden=$('exitBtn').hidden=!(state==='paused'&&battle.canAbandon);$('retryBtn').textContent=`เริ่มด่านนี้ใหม่ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;$('exitBtn').textContent='ออกจากด่าน · กลับหน้าหลัก';
@@ -385,6 +395,8 @@ window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,starMultiplier,as
 // 1.12 summon and star grades (summon.js). Stars only change before a battle, so a running battle keeps its power.
 window.SideviewSummon.mount({savedAction,toast,assetURL,coins:()=>battle.progress.coins,canAct:()=>ready&&!actionPending&&battle.state==='ready'&&window.SideviewPWA.canAct(),
  spend:coins=>{battle.progress.coins-=coins;levelKey=''},changed:()=>{if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());levelKey='';sync()}});
+// 1.14 gem shop (shop.js). It only opens from the lobby, so going to checkout never leaves a battle or an unclaimed reward.
+window.SideviewShop.mount({toast,canAct:()=>ready&&!actionPending&&battle.state==='ready'&&window.SideviewPWA.canAct()});
 window.SideviewDaily.mount({savedAction,toast,canClaim:()=>ready&&!actionPending&&(battle.state==='ready'||battle.state==='lost'||(battle.state==='won'&&battle.claimed)),
  pay:(coins,cookies)=>{battle.progress.coins+=coins;if(cookies)bank.add(cookies);levelKey=''}});
 // 1.13 gift box, events and maintenance notice from the admin page (live.js). Gifts pay like daily rewards.

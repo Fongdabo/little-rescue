@@ -39,11 +39,16 @@
  function render(){
   if(!panel)return;
   const s=read(),coins=app.coins(),free=s.freeDay!==today(),can=open();
+  const gems=window.SideviewShop?.enabled&&window.SideviewWallet?.active()&&Number.isSafeInteger(window.SideviewShop.gems)?window.SideviewShop.gems:null;
   const left=SUMMON.pity-s.sinceLegend;
   panel.querySelector('.summon-buttons').innerHTML=`
    <button type="button" class="primary" data-pull="free" ${free&&can?'':'disabled'}>${free?'สุ่มฟรีวันนี้ 1 ครั้ง':'ใช้สุ่มฟรีวันนี้แล้ว'}</button>
    <button type="button" class="primary" data-pull="1" ${can&&coins>=SUMMON.cost?'':'disabled'}>สุ่ม 1 ครั้ง · ◉ ${SUMMON.cost}</button>
-   <button type="button" class="primary" data-pull="10" ${can&&coins>=SUMMON.tenCost?'':'disabled'}>สุ่ม 10 ครั้ง · ◉ ${SUMMON.tenCost}</button>`;
+   <button type="button" class="primary" data-pull="10" ${can&&coins>=SUMMON.tenCost?'':'disabled'}>สุ่ม 10 ครั้ง · ◉ ${SUMMON.tenCost}</button>`+
+   // 1.14: gems from the shop buy the same pulls at the same prices and rates (server roll, cloud accounts only).
+   (gems===null?'':`<button type="button" class="gem" data-pull="g1" ${can&&gems>=SUMMON.cost?'':'disabled'}>สุ่ม 1 ครั้ง · 💎 ${SUMMON.cost}</button>
+   <button type="button" class="gem" data-pull="g10" ${can&&gems>=SUMMON.tenCost?'':'disabled'}>สุ่ม 10 ครั้ง · 💎 ${SUMMON.tenCost}</button>
+   <span class="summon-gems">มี 💎 ${gems.toLocaleString('th-TH')}</span>`);
   panel.querySelector('.summon-pity').textContent=`สุ่ม 10 ครั้งได้หายากขึ้นไปอย่างน้อย 1 · อีก ${left} ครั้งการันตีตำนาน · สุ่มไปแล้ว ${s.pulls} ครั้ง · เหรียญ ◉ ${coins.toLocaleString('th-TH')}`;
   panel.querySelector('.summon-results').innerHTML=last.map((r,i)=>{const u=UNITS[r.unit];
    return `<li class="tier-${r.tier}" style="--i:${i}"><img src="${app.assetURL(u.asset)}" alt=""><b>${u.name}</b><small>${tierName(r.tier)} · ชิ้นส่วน +${r.shards}</small></li>`}).join('');
@@ -60,11 +65,22 @@
    ${SUMMON.tiers.map(t=>`<tr class="tier-${t.id}"><td>${t.name}</td><td>${t.weight}%</td><td>+${t.shards}</td><td>${+(t.weight/n).toFixed(2)}%</td></tr>`).join('')}
    </tbody></table>
    <p>เพื่อนทั้ง ${n} ตัวมีโอกาสเท่ากันในทุกระดับ สุ่ม 10 ครั้งได้ระดับหายากขึ้นไปอย่างน้อย 1 ใบ ถ้าสุ่มครบ ${SUMMON.pity} ครั้งยังไม่ได้ตำนาน ครั้งที่ ${SUMMON.pity} ได้ตำนานแน่นอน
-   ใช้เหรียญในเกมเท่านั้น ไม่มีเงินจริง สุ่มด้วยตัวสุ่มของเบราว์เซอร์ (crypto)</p>
+   สุ่มด้วยเหรียญหรือเพชรก็ใช้อัตรานี้เหมือนกันทุกอย่าง (เพชรซื้อได้ที่แท็บร้านค้า ราคาเท่าเหรียญ: 1 ครั้ง 💎 ${SUMMON.cost} · 10 ครั้ง 💎 ${SUMMON.tenCost})
+   ผู้เล่นทั่วไปสุ่มด้วยตัวสุ่มของเบราว์เซอร์ (crypto) ผู้มีบัญชีคลาวด์สุ่มบนเซิร์ฟเวอร์</p>
    <p>เพิ่มดาว: ${STARS.shards.slice(2).map((s,i)=>`${i+1}→${i+2} ดาว ใช้ชิ้นส่วน ${s} + ◉ ${STARS.coins[i+2]}`).join(' · ')} · ดาวละ +${Math.round(STARS.step*100)}% HP และพลัง</p>`;
  }
  async function pull(kind){
   if(!open())return;
+  // Gem pulls exist only for cloud accounts: the server charges the gems and rolls.
+  if(kind==='g1'||kind==='g10'){
+   if(!window.SideviewWallet?.active())return;
+   busy=true;render();let answer;
+   try{answer=await window.SideviewWallet.summon(kind.slice(1),'gems')}finally{busy=false}
+   if(answer?.view&&Number.isSafeInteger(answer.view.gems))window.SideviewShop?.setGems(answer.view.gems);
+   if(answer?.results){last=answer.results;await window.SideviewWallet.reconcile();shown(answer.results)}
+   else app.toast(answer?.error==='offline'?'ต่ออินเทอร์เน็ตก่อนสุ่ม (บัญชีนี้สุ่มบนเซิร์ฟเวอร์)':answer?.error==='insufficient'?'เพชรยังไม่พอ ซื้อเพิ่มได้ที่แท็บร้านค้า':'สุ่มไม่สำเร็จ ลองใหม่อีกครั้ง');
+   render();return;
+  }
   const n=kind==='10'?10:1,price=kind==='free'?0:kind==='10'?SUMMON.tenCost:SUMMON.cost;let got=null;
   // 1.13: with a cloud account the server rolls the summon and charges it (wallet.js); the local roll is for guests.
   if(window.SideviewWallet?.active()){
