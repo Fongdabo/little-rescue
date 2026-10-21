@@ -90,6 +90,8 @@
     // 1.8: production upgrade (paid in flux, resets every battle) and the player's base blast button.
     fluxLevelMax: 5, fluxUpgradeCosts: [20, 30, 40, 50], fluxRegenStep: 0.3, fluxCapStep: 20,
     blastChargeTime: 22, blastDamage: 65, blastRange: 1200,
+    // Without a time limit a stalled fight speeds up: from rageAfter seconds every new enemy is rageStep stronger per minute.
+    rageAfter: 60, rageStep: 1.5,
     meteorTargets: 3, meteorDamage: 120, freezeTime: 4, gustPush: 140, gustDamage: 25, shieldTime: 8, shieldMultiplier: 0.5,
     baseCannonProjectileSpeed: 420, baseCannonMuzzleOffset: 120, baseCannonMuzzleY: 180,
     projectileTargetY: 390, eventHistoryLimit: 160,
@@ -320,7 +322,7 @@
 
     _resetFields() {
       this.time = 0;
-      this.remaining = this.stage.duration;
+      this.remaining = this.stage.timeLimit || Infinity;
       this.flux = CONFIG.fluxInitial;
       this.fluxLevel = 1;
       this.blastCharge = 0;
@@ -506,6 +508,11 @@
       return killed.length;
     }
 
+    get rage() {
+      if (this.stage.timeLimit) return 1;
+      return 1 + CONFIG.rageStep * Math.max(0, this.time - CONFIG.rageAfter) / 60;
+    }
+
     get blastReady() { return this.blastCharge + 1e-9 >= CONFIG.blastChargeTime; }
 
     upgradeFlux() {
@@ -568,15 +575,16 @@
       if (!boss && this.enemies.length >= CONFIG.maxEnemies) return;
       const wave = this.metrics.spawnedEnemies;
       const index = boss ? 0 : wave % ENEMIES.length, spec = ENEMIES[index];
+      const rage = this.rage;
       const hp = (CONFIG.enemyInitialHP + wave * CONFIG.enemyHPGrowth) * spec.hpFactor * this.stage.hpMul *
-        (boss ? boss.hpMul : 1);
+        (boss ? boss.hpMul : 1) * rage;
       const enemy = {id: spec.id + '-' + this.runId + '-' + (++this._serial),
         unitId: spec.id, index, kind: spec.kind, type: TYPES[wave % TYPES.length].id,
         classId: spec.classId, classTag: spec.classTag, className: spec.className,
         faction: 'enemy', name: boss ? boss.name : spec.name,
         x: CONFIG.enemyX - CONFIG.spawnInset,
         hp, maxHP: hp, damage: (CONFIG.enemyDamage + wave * CONFIG.enemyDamageGrowth) * spec.damageFactor *
-          this.stage.damageMul * (boss ? boss.damageMul : 1),
+          this.stage.damageMul * (boss ? boss.damageMul : 1) * rage,
         range: spec.range, speed: spec.speed * (boss ? boss.speedMul : 1), cooldown: 0.2, healCooldown: 0,
         attackRange: spec.range, stopDistance: spec.stopDistance,
         attackLock: 0, movement: 'hold', targetId: null, targetX: null,
@@ -849,7 +857,9 @@
       this._tick += 1;
       this.time = this._tick * CONFIG.fixedStep;
       this.baseDeployment = Math.min(1, this.time / CONFIG.deployDuration);
-      this.remaining = Math.max(0, this.stage.duration - this.time);
+      // 1.9: normal stages have no time limit, like LINE Rangers main stages; a stage may set timeLimit (seconds).
+      // The fight still ends: every wave is stronger, so a stalled team is eventually overrun.
+      this.remaining = this.stage.timeLimit ? Math.max(0, this.stage.timeLimit - this.time) : Infinity;
       this.flux = Math.min(this.fluxCap, this.flux + this.fluxRate * dt);
       this.blastCharge = Math.min(CONFIG.blastChargeTime, this.blastCharge + dt);
       this.freezeRemaining = Math.max(0, this.freezeRemaining - dt);
@@ -1031,7 +1041,7 @@
 
       if (this.homeHP <= 0) { this.state = 'lost'; this.reason = 'home'; }
       else if (this.enemyHP <= 0) this._beginVictory();
-      else if (this.remaining <= 0) { this.state = 'lost'; this.reason = 'timeout'; }
+      else if (this.stage.timeLimit && this.remaining <= 0) { this.state = 'lost'; this.reason = 'timeout'; }
       if (this.state !== 'running') this.projectiles = [];
     }
 

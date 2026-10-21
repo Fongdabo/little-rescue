@@ -29,7 +29,7 @@ const pwaAssetMap={"background.png":"background.webp","heroes-v2/hero-guard-fong
 const assetURL=file=>window.EMBEDDED_ASSETS?.[file]||'assets/'+(pwaAssetMap[file]||file);
 const canvas=$('game'),ctx=canvas.getContext('2d');
 const images={},cards=[];
-let fluxRateText='',seenEvent=0,seenRun=-1,blastFlash=0,itemFlash={t:0,id:'',xs:[]};
+let timeLabelText='',rageToldRun=[],fluxRateText='',seenEvent=0,seenRun=-1,blastFlash=0,itemFlash={t:0,id:'',xs:[]};
 let ready=false,last=performance.now(),toastUntil=0,renderedState='',lastRun=0,lastClaim=false,actionPending=false,appliedRevision=initial.revision;
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
 let reduced=motionPreference.matches;
@@ -135,7 +135,7 @@ function renderStages(){
  STAGES.forEach((st,i)=>{const locked=i>meta.cleared,b=document.createElement('button');b.className='stage-node grade-'+st.grade;b.dataset.stage=String(i);
   b.disabled=locked||!ready||actionPending||battle.state!=='ready';b.setAttribute('aria-pressed',String(i===battle.stageIndex));
   b.innerHTML=`<b>${String(st.number).padStart(2,'0')}</b><span>${locked?'ยังล็อก':st.name}</span>${i<meta.cleared?'<i aria-label="ผ่านแล้ว">✓</i>':''}`;
-  b.title=locked?'ชนะด่านก่อนหน้าเพื่อปลดล็อก':`${st.name} · ฐานศัตรู ${st.enemyHP} · ${st.duration} วินาที · รางวัล ${st.rewardCoins} เหรียญ`;
+  b.title=locked?'ชนะด่านก่อนหน้าเพื่อปลดล็อก':`${st.name} · ฐานศัตรู ${st.enemyHP} · ไม่จำกัดเวลา · รางวัล ${st.rewardCoins} เหรียญ`;
   b.addEventListener('click',()=>chooseStage(i));box.append(b)});
 }
 function renderLevels(){
@@ -207,7 +207,10 @@ function sync(){
  $('blastBtn').style.setProperty('--charge',String(charge));$('blastBtn').querySelector('small').textContent=battle.blastReady?'ยิง!':`${Math.round(charge*100)}%`;
  document.querySelectorAll('.skill-orb.item').forEach(b=>{const id=b.dataset.item,on=battle.equippedItems.includes(id),used=battle.itemsUsed.includes(id);b.hidden=!on;b.disabled=!live||used;b.classList.toggle('used',used)});
  $('speedBtn').setAttribute('aria-pressed',String(speed===2));$('fieldAutoBtn').setAttribute('aria-pressed',String(battle.mode==='auto'));
- const t=Math.max(0,Math.ceil(battle.remaining));$('timeText').textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
+ // 1.9: no time limit in normal stages, so the clock counts up; a stage with timeLimit still counts down.
+ const limited=Number.isFinite(battle.remaining),t=Math.max(0,limited?Math.ceil(battle.remaining):Math.floor(battle.time)),rage=battle.rage;$('timeText').textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
+ const timeLabel=limited?'เวลาที่เหลือ':rage>1.05?`ศัตรูดุ ×${rage.toFixed(1)}`:'เวลาในด่าน';if(timeLabelText!==timeLabel){timeLabelText=timeLabel;document.querySelector('.timer small').textContent=timeLabel}
+ if(rage>1&&!rageToldRun.includes(battle.runId)&&battle.state==='running'){rageToldRun.push(battle.runId);toast('😡 ศัตรูเริ่มดุขึ้นเรื่อยๆ รีบทำลายฐาน Mushroom!')}
  $('pauseBtn').disabled=!['running','paused','advancing'].includes(battle.state);$('pauseBtn').textContent=battle.state==='paused'?'▶':'Ⅱ';$('pauseBtn').setAttribute('aria-label',battle.state==='paused'?'เล่นต่อ':'หยุดพัก');
  $('teamCount').textContent=`${battle.progress.rescued?1:0} / 1`;
  $('killText').textContent=battle.state==='ready'?'หยุดพักได้ทุกเวลา':`ป้องกันศัตรูได้ ${battle.kills} ตัว`;
@@ -343,7 +346,7 @@ function initializeRigs(){for(const spec of [...UNITS,...ENEMIES])rigs.set(spec.
 Promise.all([initialization,window.SideviewPWA.gateReady,roleIcons.preload(),...assetFiles.map(file=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{images[file==='background.png'?'background':file==='mushroom.png'?'mushroom':file]=img;resolve()};img.onerror=()=>reject(new Error(file));img.src=assetURL(file)}))]).then(([receipt])=>{composeSceneBackground();initializeRigs();applySaved(receipt.snapshot,true);ready=true;renderedState='';document.body.classList.add('loaded');storageNote();energy();sync()}).catch(error=>{$('modalCopy').textContent='เปิดข้อมูลเกมไม่สำเร็จ: '+error.message+' โปรดแตกไฟล์ทั้งโฟลเดอร์แล้วเปิด index.html อีกครั้ง';$('actionBtn').disabled=true});
 storageNote();
 // Read-only diagnostic snapshots for independent QA; no force-win/debug buttons.
-$('balanceNote').textContent=`ตัวเลขทั้งหมดเป็นค่าตัวอย่างที่แก้ได้ใน engine.js: คุกกี้ดาวสูงสุด ${CONFIG.energyMax} / ค่าเข้า ${CONFIG.entryCost} / ฟื้น 1 ทุก ${CONFIG.refillMs/60000} นาที / เวลา ${CONFIG.duration} วินาที / ละอองใบไม้เริ่ม ${CONFIG.fluxInitial} สูงสุด ${CONFIG.fluxMax} ฟื้น +${CONFIG.fluxRegen} ต่อวินาที / รางวัลเหรียญ ${CONFIG.rewardCoins} และคุกกี้ดาว ${CONFIG.rewardCookies} รับได้หนึ่งครั้งต่อรอบที่ชนะ การพัก สลับโหมด และกดเริ่มซ้ำไม่เสียเพิ่ม`;
+$('balanceNote').textContent=`ตัวเลขทั้งหมดเป็นค่าตัวอย่างที่แก้ได้ใน engine.js: คุกกี้ดาวสูงสุด ${CONFIG.energyMax} / ค่าเข้า ${CONFIG.entryCost} / ฟื้น 1 ทุก ${CONFIG.refillMs/60000} นาที / ไม่จำกัดเวลา ศัตรูดุขึ้นหลัง ${CONFIG.rageAfter} วินาที / ละอองใบไม้เริ่ม ${CONFIG.fluxInitial} สูงสุด ${CONFIG.fluxMax} ฟื้น +${CONFIG.fluxRegen} ต่อวินาที / รางวัลเหรียญ ${CONFIG.rewardCoins} และคุกกี้ดาว ${CONFIG.rewardCookies} รับได้หนึ่งครั้งต่อรอบที่ชนะ การพัก สลับโหมด และกดเริ่มซ้ำไม่เสียเพิ่ม`;
 document.querySelector('.energy-copy small').textContent=`ใช้เข้าด่านเท่านั้น · ครั้งละ ${CONFIG.entryCost} ชิ้น`;
 window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,starMultiplier,assetURL,toast,saveItems,canEdit:()=>ready&&!actionPending});
 // 1.10 summon and star grades (summon.js). Stars only change before a battle, so a running battle keeps its power.

@@ -70,6 +70,8 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v190/index.html",
   "recover-v1100/",
   "recover-v1100/index.html",
+  "recover-v191/",
+  "recover-v191/index.html",
   "role-icons.css",
   "role-icons.js",
   "rotate-hint.js",
