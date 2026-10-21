@@ -413,3 +413,71 @@
     font-size: 10px;
   }
 }
+
+/* ---------- 1.7.2: "rotate your phone" before a battle (rotate-hint.js) ---------- */
+.rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  background: #1a3c28cc;
+  backdrop-filter: blur(3px);
+}
+
+.rotate-card {
+  width: min(340px, 100%);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  padding: 22px 20px 18px;
+  border: 2px solid #c7ac80;
+  border-radius: 20px;
+  background: #fffbef;
+  box-shadow: 0 6px 0 #87644133, 0 12px 36px #55402940;
+}
+
+.rotate-card h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--green);
+}
+
+.rotate-card p,
+.rotate-card small {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.rotate-card small {
+  font-size: 11px;
+}
+
+.rotate-card button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.rotate-phone span {
+  display: inline-block;
+  font-size: 46px;
+  animation: rotate-phone 2.4s ease-in-out infinite;
+}
+
+@keyframes rotate-phone {
+  0%, 20% { transform: rotate(0deg); }
+  50%, 80% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotate-phone span {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
