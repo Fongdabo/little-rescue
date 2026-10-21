@@ -1,7 +1,7 @@
 /* Local prototype UI. Rendering uses copied, replaceable assets. No network APIs. */
 'use strict';
 (() => {
-const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,LEVELS,ITEMS,levelCost,levelMultiplier,EnergyBank,Battle}=window.Sideview;
+const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,LEVELS,ITEMS,levelCost,levelMultiplier,starMultiplier,EnergyBank,Battle}=window.Sideview;
 const $=id=>document.getElementById(id);
 const storageKey='little-rescue-sideview-save-v2';
 let storage=null;try{storage=window.localStorage}catch{}
@@ -27,7 +27,7 @@ function readMeta(){
 }
 function writeMeta(){try{storage?.setItem(metaKey,JSON.stringify(meta));return true}catch{return false}}
 let meta=readMeta(),levelKey='';
-battle.setLevels(meta.levels);battle.setStage(meta.stage);
+battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());
 const pwaAssetMap={"background.png":"background.webp","heroes-v2/hero-guard-fongsabo.png":"heroes-v2/hero-guard-fongsabo.webp","heroes-v2/hero-agile-sailom.png":"heroes-v2/hero-agile-sailom.webp","heroes-v2/hero-ranged-maletdao.png":"heroes-v2/hero-ranged-maletdao.webp","heroes-v2/hero-helper-puipan.png":"heroes-v2/hero-helper-puipan.webp","heroes-v2/hero-mage-lukoak.png":"heroes-v2/hero-mage-lukoak.webp","enemies-v2/enemy-guard.png":"enemies-v2/enemy-guard.webp","enemies-v2/enemy-agile.png":"enemies-v2/enemy-agile.webp","enemies-v2/enemy-ranged.png":"enemies-v2/enemy-ranged.webp","enemies-v2/enemy-helper.png":"enemies-v2/enemy-helper.webp","enemies-v2/enemy-mage.png":"enemies-v2/enemy-mage.webp"};
 const assetURL=file=>window.EMBEDDED_ASSETS?.[file]||'assets/'+(pwaAssetMap[file]||file);
 const canvas=$('game'),ctx=canvas.getContext('2d');
@@ -164,8 +164,8 @@ function markCleared(){
  levelKey='';
 }
 function refreshMeta(){
- const key=[ready,actionPending,battle.state,battle.progress.coins,battle.levels.join(','),battle.stageIndex,meta.cleared].join('|');
- if(key===levelKey)return;levelKey=key;renderStages();renderLevels();$('coinText').textContent=battle.progress.coins.toLocaleString('th-TH');
+ const key=[ready,actionPending,battle.state,battle.progress.coins,battle.stars.join(','),battle.levels.join(','),battle.stageIndex,meta.cleared].join('|');
+ if(key===levelKey)return;levelKey=key;renderStages();renderLevels();$('coinText').textContent=battle.progress.coins.toLocaleString('th-TH');if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();window.SideviewLobby.renderBook();
 }
 window.addEventListener('storage',event=>{if(event.key!==metaKey)return;meta=readMeta();if(battle.state==='ready'){battle.setLevels(meta.levels);if(battle.stageIndex>meta.cleared)battle.setStage(meta.stage);stageHeading()}levelKey='';sync()});
 let countedRun=0;
@@ -352,11 +352,14 @@ storageNote();
 // Read-only diagnostic snapshots for independent QA; no force-win/debug buttons.
 $('balanceNote').textContent=`ตัวเลขทั้งหมดเป็นค่าตัวอย่างที่แก้ได้ใน engine.js: คุกกี้ดาวสูงสุด ${CONFIG.energyMax} / ค่าเข้า ${CONFIG.entryCost} / ฟื้น 1 ทุก ${CONFIG.refillMs/60000} นาที / ไม่จำกัดเวลา ศัตรูดุขึ้นหลัง ${CONFIG.rageAfter} วินาที / ละอองใบไม้เริ่ม ${CONFIG.fluxInitial} สูงสุด ${CONFIG.fluxMax} ฟื้น +${CONFIG.fluxRegen} ต่อวินาที / รางวัลเหรียญ ${CONFIG.rewardCoins} และคุกกี้ดาว ${CONFIG.rewardCookies} รับได้หนึ่งครั้งต่อรอบที่ชนะ การพัก สลับโหมด และกดเริ่มซ้ำไม่เสียเพิ่ม`;
 document.querySelector('.energy-copy small').textContent=`ใช้เข้าด่านเท่านั้น · ครั้งละ ${CONFIG.entryCost} ชิ้น`;
-window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,assetURL,toast,saveItems,canEdit:()=>ready&&!actionPending});
+window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,starMultiplier,assetURL,toast,saveItems,canEdit:()=>ready&&!actionPending});
+// 1.12 summon and star grades (summon.js). Stars only change before a battle, so a running battle keeps its power.
+window.SideviewSummon.mount({savedAction,toast,assetURL,coins:()=>battle.progress.coins,canAct:()=>ready&&!actionPending&&battle.state==='ready'&&window.SideviewPWA.canAct(),
+ spend:coins=>{battle.progress.coins-=coins;levelKey=''},changed:()=>{if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());levelKey='';sync()}});
 window.SideviewDaily.mount({savedAction,toast,canClaim:()=>ready&&!actionPending&&(battle.state==='ready'||battle.state==='lost'||(battle.state==='won'&&battle.claimed)),
  pay:(coins,cookies)=>{battle.progress.coins+=coins;if(cookies)bank.add(cookies);levelKey=''}});
 $('replayBtn').textContent=`เล่นอีกครั้ง · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;
-window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.11.1',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.11.1',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
+window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.12.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.12.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
 saves.subscribe(snapshot=>{const coins=battle.progress.coins,rescued=battle.progress.rescued;applySaved(snapshot);if(battle.state==='won'&&(coins!==battle.progress.coins||rescued!==battle.progress.rescued))renderedState='';energy();sync()});
 const importSafe=()=>ready&&!actionPending&&window.SideviewTransfer.canImport(battle.state,battle.claimed);
 window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refresh:sync,
@@ -372,7 +375,7 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
  },
  // 1.11 cloud save (cloud-save.js): the stage/level meta travels with the save; daily missions too.
  meta:()=>readMeta(),
- importCloud:async(transfer,cloudMeta,daily,now)=>{
+ importCloud:async(transfer,cloudMeta,daily,now,summon)=>{
    if(!importSafe()||!window.SideviewPWA.canAct()||!saves.writable)return false;
    const clean=window.SideviewTransfer.parse(JSON.stringify(transfer),{now}).save,nextMeta=cleanMeta(cloudMeta);
    if(!nextMeta)return false;
@@ -380,11 +383,11 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    try{
      // Meta and daily are written inside the save lock, the same way daily claims are.
      const receipt=await saves.mutate(draft=>{
-       try{storage.setItem(metaKey,JSON.stringify(nextMeta));if(daily)storage.setItem('little-rescue-daily-v1',JSON.stringify(daily))}catch{return false}
+       try{storage.setItem(metaKey,JSON.stringify(nextMeta));if(daily)storage.setItem('little-rescue-daily-v1',JSON.stringify(daily));if(summon)storage.setItem(window.SideviewSummon.KEY,JSON.stringify(summon))}catch{return false}
        accepted=true;return {...draft,...clean,revision:draft.revision}},{requireDurable:true});
      if(!accepted||!receipt.committed)return false;
      applySaved(receipt.snapshot,true);battle.setRoster(receipt.snapshot.roster);
-     meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);stageHeading();
+     meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
      levelKey='';renderedState='';window.SideviewDaily.refresh();return true;
    }finally{actionPending=false;storageNote();energy();sync()}
  }

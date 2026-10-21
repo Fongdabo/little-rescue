@@ -6,7 +6,7 @@
  'use strict';
  const TABS=[
   {id:'adventure',icon:'🗺️',label:'ผจญภัย'},{id:'team',icon:'🐾',label:'ทีม'},{id:'upgrade',icon:'⬆️',label:'อัปเกรด'},
-  {id:'book',icon:'📖',label:'สะสม'},{id:'missions',icon:'📋',label:'ภารกิจ'},
+  {id:'book',icon:'📖',label:'สะสม'},{id:'summon',icon:'✨',label:'สุ่ม'},{id:'missions',icon:'📋',label:'ภารกิจ'},
   {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน',soon:true},{id:'gifts',icon:'🎁',label:'ของขวัญ',soon:true}];
  const typeName={stone:'หินอุ่น',star:'แสงดาว',wind:'สายลม'};
  let app=null,tab='adventure',bar=null,items=null,book=null;
@@ -18,6 +18,8 @@
   tab=id;document.getElementById('preflightControls').dataset.tab=id;
   bar.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===id)));
   if(id==='book')renderBook();
+  if(id==='summon')window.SideviewSummon?.render();
+  refresh();
  }
  function renderItems(){
   const {battle,ITEMS}=app,locked=battle.state!=='ready'||!app.canEdit();
@@ -26,10 +28,11 @@
     <span class="item-icon" aria-hidden="true">${item.icon}</span><b>${item.name}</b><small>${item.text}</small><i>${on?'ฟรี ✓':'ไม่เอา'}</i></button>`}).join('');
  }
  function renderBook(){
-  const {battle,UNITS,levelMultiplier,assetURL}=app;
-  book.innerHTML=UNITS.map((u,i)=>{const lv=battle.levels[i],p=levelMultiplier(lv);
+  if(!book||tab!=='book')return;
+  const {battle,UNITS,levelMultiplier,starMultiplier,assetURL}=app;
+  book.innerHTML=UNITS.map((u,i)=>{const lv=battle.levels[i],star=battle.stars[i],p=levelMultiplier(lv)*starMultiplier(star);
    return `<div class="book-card type-${u.type}"><img src="${assetURL(u.asset)}" alt=""><b>${u.name}</b>
-    <small>${u.role} · ${typeName[u.type]||''}</small><span class="book-lv">Lv ${lv}</span>
+    <small>${u.role} · ${typeName[u.type]||''}</small><span class="book-lv">Lv ${lv}</span><span class="book-stars" aria-label="${star} ดาว">${'★'.repeat(star)}</span>
     <dl><dt>HP</dt><dd>${Math.round(u.hp*p)}</dd><dt>พลัง</dt><dd>${Math.round(u.damage*p)}</dd><dt>ค่าเรียก</dt><dd>❧ ${u.cost}</dd></dl></div>`}).join('')+
    `<div class="book-card boss"><span class="book-boss" aria-hidden="true">👑</span><b>ราชาเห็ดยักษ์</b><small>บอสด่าน 05</small><span class="book-lv">บอส</span>
     <dl><dt>ออกมา</dt><dd>ฐานเหลือ 60%</dd><dt>แพ้ทาง</dt><dd>ปืนใหญ่ + ฝนลูกสน</dd></dl></div>`;
@@ -57,5 +60,5 @@
   modal.append(bar);
   refresh();
  }
- window.SideviewLobby={TABS,mount,refresh,setTab,get tab(){return tab}};
+ window.SideviewLobby={TABS,mount,refresh,setTab,renderBook,get tab(){return tab}};
 })();

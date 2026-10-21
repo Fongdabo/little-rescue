@@ -7,7 +7,7 @@
    (or the page is opened without the API, e.g. from a file), the cloud button stays hidden. */
 (()=>{
  'use strict';
- const KEY='little-rescue-cloud-v1',LOCK='little-rescue-cloud-sync',DAILY='little-rescue-daily-v1';
+ const KEY='little-rescue-cloud-v1',LOCK='little-rescue-cloud-sync',DAILY='little-rescue-daily-v1',SUMMON='little-rescue-summon-v1';
  const $=id=>document.getElementById(id);
  let storage=null;try{storage=window.localStorage}catch{}
  let enabled=false,busy=false,conflict=null,status='',button=null,dialog=null,showCode=false;
@@ -31,10 +31,12 @@
   const snapshot=await window.SideviewBridge.exportSave();
   const transfer=JSON.parse(window.SideviewTransfer.create(snapshot));
   let daily=null;try{const d=JSON.parse(storage?.getItem(DAILY)||'null');if(d&&d.v===1)daily=d}catch{}
-  return {format:'little-rescue-cloud',formatVersion:1,transfer,meta:window.SideviewBridge.meta(),daily};
+  // 1.12 summon stars and shards ride along; a bundle from an older build simply has none.
+  let summon=null;try{const s=JSON.parse(storage?.getItem(SUMMON)||'null');if(s&&s.v===1)summon=s}catch{}
+  return {format:'little-rescue-cloud',formatVersion:1,transfer,meta:window.SideviewBridge.meta(),daily,summon};
  }
  // What counts as "changed": the save data, not the export time.
- const fingerprint=b=>JSON.stringify([b.transfer.save,b.meta,b.daily]);
+ const fingerprint=b=>JSON.stringify([b.transfer.save,b.meta,b.daily,b.summon||null]);
  function summary(b){
   if(!b?.transfer?.save)return 'ไม่มีข้อมูล';
   const s=b.transfer.save,m=b.meta||{},levels=Array.isArray(m.levels)?m.levels.reduce((a,n)=>a+n,0):0;
@@ -93,7 +95,7 @@
   // Clocks differ between devices; accept a cloud copy up to a day "ahead" of this one.
   if(stamp-Date.now()>86400000){setStatus('เวลาในเครื่องนี้ไม่ตรง ตั้งเวลาให้ถูกแล้วลองใหม่');return}
   let ok=false;
-  try{ok=await window.SideviewBridge.importCloud(t,pending.bundle.meta,pending.bundle.daily?.v===1?pending.bundle.daily:null,stamp)}catch{ok=false}
+  try{ok=await window.SideviewBridge.importCloud(t,pending.bundle.meta,pending.bundle.daily?.v===1?pending.bundle.daily:null,stamp,pending.bundle.summon?.v===1?pending.bundle.summon:null)}catch{ok=false}
   if(!ok){setStatus('ใช้เซฟจากคลาวด์ไม่สำเร็จ เซฟในเครื่องไม่ถูกแก้');return}
   const state=readState(),now=await localBundle();
   if(state)writeState({...state,rev:pending.rev,synced:fingerprint(now),choose:false});
