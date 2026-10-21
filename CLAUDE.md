@@ -27,5 +27,6 @@ The owner writes Thai; reply in Thai.
 
 ## Game data
 
-- engine.js: `STAGES` (stage 1 = exact 1.6.6 values), `LEVELS` (+10%/level, cost 20×level coins), `UNITS`, `ENEMIES`,
+- engine.js: `STAGES` (stage 1 = 1.6.6 values, but since 1.9 no stage has a time limit unless it sets `timeLimit`;
+  `rage` makes enemies spawned after 60 s stronger), `LEVELS` (+10%/level, cost 20×level coins), `UNITS`, `ENEMIES`,
   deterministic fixed-step `Battle`. Types หินอุ่น > แสงดาว > สายลม > หินอุ่น.

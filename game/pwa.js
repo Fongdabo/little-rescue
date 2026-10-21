@@ -33,8 +33,24 @@ const PAGE_BUILD_ID='pwa-1.9.0';
      }
    }
  });
+ // 1.9: one big "อัปเดตเลย" button appears by itself when a new version is ready. It runs the same gated apply
+ // as the button in the tools panel, so it still never reloads mid-battle or before a reward is claimed.
+ const banner=document.createElement('button');banner.type='button';banner.className='update-banner';banner.hidden=true;
+ banner.innerHTML='<span aria-hidden="true">✨</span><b>มีรุ่นใหม่</b><small></small>';
+ banner.addEventListener('click',()=>$('applyUpdateBtn').click());
+ const mountBanner=()=>document.body.append(banner);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mountBanner,{once:true});else mountBanner();
+ const inBattle=()=>['running','advancing','paused'].includes(window.SideviewBridge?.snapshot().state);
+ let wasInBattle=false;
  function sync(){
    const canTransfer=safe()&&canAct();
+   const battling=inBattle();
+   // checking mid-battle only queues; look again the moment a battle ends
+   if(wasInBattle&&!battling)setTimeout(autoCheck,1500);
+   wasInBattle=battling;
+   banner.hidden=!waitingBuildId||battling;
+   banner.disabled=!canTransfer||updateState==='applying';
+   banner.querySelector('small').textContent=updateState==='applying'?'กำลังอัปเดต…':updateState==='blocked'?'ปิดหน้าต่างเกมอื่นก่อน แล้วแตะอีกครั้ง':canTransfer?'แตะเพื่ออัปเดตเลย · เซฟอยู่ครบ':'จบด่านและรับรางวัลก่อน แล้วแตะอัปเดต';
    $('exportSaveBtn').disabled=!window.SideviewBridge?.snapshot().ready||!canAct();
    $('importSaveInput').disabled=!canTransfer||!window.SideviewBridge?.snapshot().saveWritable;
    $('applyUpdateBtn').hidden=!waitingBuildId;
@@ -97,6 +113,8 @@ const PAGE_BUILD_ID='pwa-1.9.0';
        registration.addEventListener('updatefound',()=>watch(registration.installing));watch(registration.installing);
        if(registration.active){offlineReady=true;const data=await message(registration.active,{type:'GET_STATUS'});buildId=data.buildId;status('พร้อมเล่นออฟไลน์จาก URL นี้ ตรวจอัปเดตได้เมื่อออนไลน์')}
        if(registration.waiting)await waiting();
+       setTimeout(autoCheck,60*1000);setInterval(autoCheck,30*60*1000);
+       document.addEventListener('visibilitychange',()=>{if(!document.hidden)autoCheck()});
      }catch{updateState='error';status('เตรียมออฟไลน์ไม่สำเร็จ ยังเล่นหน้าเดิมได้ ลองเปิดผ่าน HTTPS หรือ localhost อีกครั้ง')}
      sync();
    });
@@ -104,6 +122,13 @@ const PAGE_BUILD_ID='pwa-1.9.0';
  window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installBtn').hidden=false});
  window.addEventListener('appinstalled',()=>{$('installBtn').hidden=true;status('เพิ่มไอคอนแล้ว เปิดเกมจากไอคอนได้เมื่อไฟล์ออฟไลน์พร้อม')});
  $('installBtn').addEventListener('click',async()=>{if(!installPrompt)return;const prompt=installPrompt;installPrompt=null;await prompt.prompt();await prompt.userChoice;$('installBtn').hidden=true});
+ // Quiet background check, so nobody has to find the "ตรวจอัปเดต" button; it only downloads, never reloads.
+ async function autoCheck(){
+   // never while a first install or another update is still running: a second update job queues behind it
+   if(!registration?.active||registration.installing||!navigator.onLine||['checking','applying','available'].includes(updateState))return;
+   if(inBattle())return;
+   try{await registration.update();if(registration.waiting)await waiting()}catch{}
+ }
  $('checkUpdateBtn').addEventListener('click',async()=>{
    if(!registration||updateState==='checking'||updateState==='applying')return;
    updateState='checking';status('กำลังตรวจรุ่นใหม่…');sync();
