@@ -200,7 +200,7 @@ async function levelUp(index){
 // 2.0 sticker heroes join for coins from the hero book (summon.js may also grant them).
 async function unlockHero(index){
  const u=UNITS[index];if(!u||heroes.owned(u.id))return false;
- const ok=await savedAction(()=>{if(battle.state!=='ready'||battle.progress.coins<u.unlockCoins){toast('เหรียญยังไม่พอ ชนะด่านเพื่อรับเหรียญ');return false}if(!heroes.grant(u.id))return false;battle.progress.coins-=u.unlockCoins;return true});
+ const ok=await savedAction(()=>{if(battle.state!=='ready'||battle.progress.coins<u.unlockCoins){toast('เหรียญยังไม่พอ ชนะด่านเพื่อรับเหรียญ');return false}if(!heroes.grant(u.id))return false;battle.progress.coins-=u.unlockCoins;window.SideviewWallet?.record({kind:'unlock',unit:u.id});return true});
  if(ok){toast(`${u.name} มาเป็นเพื่อนแล้ว! เลือกลงทีมได้ที่แท็บทีม`);levelKey='';sync()}return ok;
 }
 heroes.onChange(()=>{if(battle.state==='ready'){battle.setLevels(allLevels());battle.setRoster(rosterFor(saves.read().roster))}levelKey='';window.SideviewLobby.refresh();sync()});
@@ -428,7 +428,7 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    }finally{actionPending=false;storageNote();energy();sync()}
  },
  // 1.11 cloud save (cloud-save.js): the stage/level meta travels with the save; daily missions too.
- meta:()=>readMeta(),
+ meta:()=>readMeta(),levels:()=>allLevels(),
  importCloud:async(transfer,cloudMeta,daily,now,summon,heroBundle)=>{
    if(!importSafe()||!window.SideviewPWA.canAct()||!saves.writable)return false;
    const clean=window.SideviewTransfer.parse(JSON.stringify(transfer),{now}).save,nextMeta=cleanMeta(cloudMeta);
@@ -453,14 +453,14 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    try{
      const receipt=await saves.mutate(draft=>{
        if(!stillClean())return false;
-       const now=readMeta(),next=cleanMeta({...now,cleared:view.cleared,levels:view.levels});
+       const now=readMeta(),next=cleanMeta({...now,cleared:view.cleared,levels:Array.isArray(view.levels)?view.levels.slice(0,BASE):view.levels});
        if(!next||!Number.isSafeInteger(view.coins)||view.coins<0)return false;
        try{storage.setItem(metaKey,JSON.stringify(next))}catch{return false}
-       if(!window.SideviewSummon.adopt(view))return false;
+       if(!window.SideviewSummon.adopt(view)||!heroes.adopt(view))return false;
        accepted=true;return {...draft,progress:{...draft.progress,coins:view.coins},revision:draft.revision}},{requireDurable:true});
      if(!accepted||!receipt.committed)return false;
-     applySaved(receipt.snapshot,true);
-     meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
+     applySaved(receipt.snapshot,true);battle.setRoster(rosterFor(receipt.snapshot.roster));
+     meta=readMeta();battle.setLevels(allLevels());battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
      levelKey='';renderedState='';return true;
    }finally{actionPending=false;storageNote();energy();sync()}
  }

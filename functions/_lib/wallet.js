@@ -32,8 +32,11 @@ function fromRow(row, playerId) {
   if (!row) return {playerId, rev: 0, coins: 0, gems: 0, fp: 0, cleared: 0, levels: UNIT_IDS.map(() => 1), units: emptyUnits(),
     sinceLegend: 0, pulls: 0, freeDay: '', login: {streak: 0, lastDay: ''}, days: {}, seeded: false};
   const units = {...emptyUnits(), ...parse(row.units, {})};
+  // Wallets from before the sticker heroes hold 5 levels; the new heroes start at Lv 1.
+  const levels = parse(row.levels, []);
+  while (levels.length < UNIT_IDS.length) levels.push(1);
   return {playerId, rev: row.rev, coins: row.coins, gems: row.gems, fp: row.fp, cleared: row.cleared,
-    levels: parse(row.levels, UNIT_IDS.map(() => 1)), units, sinceLegend: row.since_legend, pulls: row.pulls,
+    levels, units, sinceLegend: row.since_legend, pulls: row.pulls,
     freeDay: row.free_day, login: parse(row.login, {streak: 0, lastDay: ''}), days: parse(row.days, {}), seeded: row.seeded === 1};
 }
 

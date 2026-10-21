@@ -2,7 +2,12 @@
 // The game's own copies live in game/engine.js (STAGES, LEVELS, STARS, SUMMON, UNITS) and game/daily-missions.js
 // (MISSIONS, LOGIN). tools/check.mjs fails the build if the two ever differ, so change both together.
 
-export const UNIT_IDS = ['sugar-01', 'sugar-02', 'sugar-05', 'sugar-07', 'sugar-08'];
+export const UNIT_IDS = ['sugar-01', 'sugar-02', 'sugar-05', 'sugar-07', 'sugar-08',
+  'sticker-bison', 'sticker-kangaroo', 'sticker-peacock', 'sticker-wombat', 'sticker-lemur'];
+// 1.14.1 sticker heroes (UNIT_IDS 5+) start locked: bought with coins (op 'unlock') or won by a first summon.
+// Ownership is units[id].owned in the wallet. Prices = engine.js UNITS[].unlockCoins.
+export const BASE_HEROES = 5;
+export const UNLOCK = {'sticker-bison': 200, 'sticker-kangaroo': 200, 'sticker-peacock': 250, 'sticker-wombat': 250, 'sticker-lemur': 300};
 export const STAGE_REWARDS = [30, 45, 60, 75, 90];
 export const LEVELS = {max: 10, costBase: 20};
 export const levelCost = level => LEVELS.costBase * level;

@@ -45,6 +45,14 @@
   const state=read();state.team=indices.map(i=>UNITS[i].id);state.base=saveRoster.slice();return write(state);
  }
  function list(){return UNITS.filter(u=>owned(u.id)).map(u=>u.id)}
+ // 1.14.1 server wallet (signed-in players): its owned flags and levels replace the local ones. Called inside the save lock.
+ function adopt(view){
+  if(!Array.isArray(view?.levels)||!view.units)return false;
+  const state=read(),next={};
+  UNITS.forEach((u,i)=>{if(i>=BASE&&view.units[u.id]?.owned)next[u.id]={level:Number.isInteger(view.levels[i])?Math.max(1,Math.min(LEVELS.max,view.levels[i])):1}});
+  state.owned=next;if(state.team&&!state.team.every(id=>isBase(id)||next[id]))state.team=null;
+  if(!write(state))return false;emit();return true;
+ }
  addEventListener('storage',event=>{if(event.key===KEY)emit()});
- window.SideviewHeroes={KEY,owned,grant,level,setLevel,team,setTeam,list,onChange:fn=>listeners.add(fn)};
+ window.SideviewHeroes={KEY,owned,grant,level,setLevel,team,setTeam,list,adopt,onChange:fn=>listeners.add(fn)};
 })();

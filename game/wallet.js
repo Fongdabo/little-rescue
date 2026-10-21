@@ -50,7 +50,7 @@
  function localSnapshot(b){
   const m=b.meta(),s=window.SideviewSummon.read();let login=null;
   try{const d=JSON.parse(storage.getItem(window.SideviewDaily.KEY)||'null');if(d?.v===1&&d.login)login=d.login}catch{}
-  return {coins:b.snapshot().progress.coins,levels:m.levels,cleared:m.cleared,units:s.units,sinceLegend:s.sinceLegend,pulls:s.pulls,freeDay:s.freeDay,login};
+  return {coins:b.snapshot().progress.coins,levels:b.levels?.()||m.levels,owned:window.SideviewHeroes?.list()||[],cleared:m.cleared,units:s.units,sinceLegend:s.sinceLegend,pulls:s.pulls,freeDay:s.freeDay,login};
  }
 
  // Must hold LOCK. Starts the wallet if needed, then sends the queue in order. false = could not reach the server.
