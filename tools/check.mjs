@@ -15,9 +15,9 @@ for (const f of readdirSync(GAME).filter(f => f.endsWith('.js'))) {
   catch (e) { fail(`${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
 
-// 1b. Cloudflare Pages Functions (play statistics endpoint) parse too
+// 1b. Cloudflare Pages Functions (cloud save, statistics, shop; subfolders too) parse too
 const FUNCTIONS = new URL('../functions/api/', import.meta.url).pathname;
-for (const f of existsSync(FUNCTIONS) ? readdirSync(FUNCTIONS).filter(f => f.endsWith('.js')) : []) {
+for (const f of existsSync(FUNCTIONS) ? readdirSync(FUNCTIONS, {recursive: true}).filter(f => f.endsWith('.js')) : []) {
   try { execFileSync(process.execPath, ['--check', join(FUNCTIONS, f)], { stdio: 'pipe' }); }
   catch (e) { fail(`functions/api/${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
