@@ -1,6 +1,6 @@
 /* Buildless, scope-isolated PWA. No game save is stored in this cache. */
 'use strict';
-const BUILD_ID='pwa-1.11.0';
+const BUILD_ID='pwa-1.11.1';
 const SCOPE=self.registration.scope;
 const PREFIX='little-rescue-pwa:'+SCOPE+':';
 const CACHE_NAME=PREFIX+BUILD_ID;
@@ -70,6 +70,10 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v190/index.html",
   "recover-v191/",
   "recover-v191/index.html",
+  "recover-v1110/",
+  "recover-v1110/index.html",
+  "recover-v1111/",
+  "recover-v1111/index.html",
   "role-icons.css",
   "role-icons.js",
   "rotate-hint.js",
@@ -77,6 +81,7 @@ const PRECACHE=/* PRECACHE_START */[
   "save-transfer.js",
   "skills.css",
   "stages.css",
+  "stats.js",
   "styles.css",
   "vehicle-preview.css",
   "victory-sequence.js"

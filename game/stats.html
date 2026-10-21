@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>สถิติผู้เล่น · Little Rescue</title>
+<style>
+:root{--bg:#f6f3ea;--card:#fffdf7;--ink:#2d2a24;--muted:#6f685c;--line:#e4dccb;--accent:#3f8f5a;--accent2:#d9822b;--bad:#c2463b;--bar:#cfe5d6}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1b18;--card:#262420;--ink:#f1ece0;--muted:#b0a796;--line:#3a362f;--accent:#6cc08a;--accent2:#f0a35a;--bad:#ef7b70;--bar:#2f4a39}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,"Noto Sans Thai",sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:0 0 4px}
+p.sub,.hint{color:var(--muted);margin:0 0 12px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0;overflow-x:auto}
+form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input,select,button{font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{background:var(--accent);color:#fff;border-color:transparent;cursor:pointer}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.tile b{display:block;font-size:26px;font-variant-numeric:tabular-nums}.tile span{color:var(--muted);font-size:13px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--muted);font-weight:600;font-size:12px}
+.barcell{min-width:140px;text-align:left}.bar{height:12px;border-radius:6px;background:var(--bar);position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:6px;background:var(--accent)}
+.bar.warn i{background:var(--accent2)}.bar.bad i{background:var(--bad)}
+.cols{display:flex;align-items:flex-end;gap:3px;height:140px;border-bottom:1px solid var(--line);padding-top:8px}
+.cols div{flex:1;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.cols div em{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;font-style:normal;color:var(--muted)}
+.axis{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:4px}
+#msg{color:var(--bad);font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>สถิติผู้เล่น Little Rescue</h1>
+<p class="sub">ข้อมูลไม่ระบุตัวตน นับวันตามเวลาไทย หน้านี้ใช้รหัสดูสถิติ (STATS_KEY) ที่ตั้งไว้ใน Cloudflare</p>
+<div class="card">
+<form id="f">
+<input id="key" type="password" placeholder="รหัสดูสถิติ" autocomplete="current-password" required>
+<select id="days"><option value="7">7 วัน</option><option value="30" selected>30 วัน</option><option value="90">90 วัน</option></select>
+<select id="test"><option value="0">ผู้เล่นจริง</option><option value="1">ลิงก์ทดสอบ (pr-…)</option></select>
+<button>ดูสถิติ</button><span id="msg" role="status"></span>
+</form>
+</div>
+<div id="out" hidden>
+<div class="tiles" id="tiles"></div>
+<div class="card"><h2>ผู้เล่นต่อวัน</h2><p class="hint">แท่งคือผู้เล่นที่เปิดเกมในวันนั้น ตัวเลขบนแท่งคือผู้เล่นใหม่</p><div class="cols" id="daily"></div><div class="axis" id="dailyAxis"></div></div>
+<div class="card"><h2>แต่ละด่าน</h2><p class="hint">อัตราชนะต่ำหรือ "เหลือพลังศัตรู" น้อยตอนแพ้ = เกือบชนะ ลองลดความยากนิดเดียว ถ้าเหลือมาก = ยากเกินไป</p><table id="stages"></table></div>
+<div class="card"><h2>ผู้เล่นหยุดอยู่ที่ไหน</h2><p class="hint">นับจากจำนวนด่านที่ผ่านแล้วตอนเข้าเกมครั้งล่าสุด "เลิกเล่น" = ไม่เข้าเกม 3 วันขึ้นไป</p><table id="furthest"></table></div>
+<div class="card"><h2>เวลาเล่นต่อวัน</h2><table id="sessions"></table></div>
+<div class="card"><h2>เวอร์ชันที่ผู้เล่นใช้</h2><table id="builds"></table></div>
+</div>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+const pct=(a,b)=>b?Math.round(a/b*100):null;
+const mins=s=>s==null?'–':s<60?`${s} วิ`:`${Math.floor(s/60)} นาที ${s%60?`${s%60} วิ`:''}`.trim();
+const bar=(v,cls='')=>v==null?'–':`<div class="bar ${cls}" title="${v}%"><i style="width:${Math.min(100,v)}%"></i></div>`;
+const stageName=i=>`ด่าน ${String(i+1).padStart(2,'0')}`;
+try{$('key').value=localStorage.getItem('little-rescue-stats-key')||''}catch{}
+$('f').addEventListener('submit',async e=>{
+ e.preventDefault();$('msg').textContent='กำลังโหลด…';
+ try{localStorage.setItem('little-rescue-stats-key',$('key').value)}catch{}
+ try{
+  const r=await fetch(`api/stats?days=${$('days').value}&test=${$('test').value}`,{headers:{authorization:`Bearer ${$('key').value}`}});
+  const d=await r.json().catch(()=>({error:'bad'}));
+  if(!r.ok){$('msg').textContent={'wrong-key':'รหัสไม่ถูกต้อง','no-key':'ยังไม่ได้ตั้ง STATS_KEY ใน Cloudflare','no-db':'ยังไม่ได้ผูกฐานข้อมูล D1 ชื่อ DB'}[d.error]||`โหลดไม่ได้ (${r.status})`;return}
+  render(d);$('msg').textContent='';
+ }catch{$('msg').textContent='โหลดไม่ได้ ตรวจอินเทอร์เน็ต'}
+});
+function render(d){
+ $('out').hidden=false;
+ const ret=d.retention||{},tot=d.totals||{};
+ const totalSecs=d.sessions.reduce((a,s)=>a+(s.total_secs||0),0),sessions=d.sessions.reduce((a,s)=>a+s.sessions,0);
+ const tiles=[
+  [tot.players||0,`ผู้เล่น (${d.days} วัน)`],[ret.new_players||0,'ผู้เล่นใหม่'],
+  [sessions,'ครั้งที่เปิดเล่น'],[mins(sessions?Math.round(totalSecs/sessions):null),'เวลาเล่นเฉลี่ยต่อครั้ง'],
+  [ret.d1_eligible?`${pct(ret.d1,ret.d1_eligible)}%`:'–','กลับมาวันถัดไป (D1)'],
+  [ret.d7_eligible?`${pct(ret.d7,ret.d7_eligible)}%`:'–','กลับมาวันที่ 7 (D7)']];
+ $('tiles').innerHTML=tiles.map(([v,l])=>`<div class="tile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+ // fill every day so gaps show as zero
+ const byDay=Object.fromEntries(d.daily.map(x=>[x.day,x])),days=[];
+ for(let t=Date.parse(d.since);t<=Date.parse(d.today);t+=864e5)days.push(new Date(t).toISOString().slice(0,10));
+ const max=Math.max(1,...d.daily.map(x=>x.players));
+ $('daily').innerHTML=days.map(day=>{const x=byDay[day]||{players:0,new_players:0};return `<div style="height:${x.players/max*100}%" title="${day}: ${x.players} คน (ใหม่ ${x.new_players})">${x.new_players?`<em>${x.new_players}</em>`:''}</div>`}).join('');
+ $('dailyAxis').innerHTML=`<span>${days[0]}</span><span>สูงสุด ${max} คน/วัน</span><span>${days.at(-1)}</span>`;
+ const first=d.stages.find(s=>s.stage===0)?.players||0;
+ $('stages').innerHTML='<tr><th>ด่าน</th><th>ผู้เล่นที่ลอง</th><th>ผ่านแล้ว</th><th>ไปถึง (เทียบด่าน 1)</th><th>รอบที่เล่น</th><th>อัตราชนะ</th><th class="barcell"></th><th>แพ้: ฐานแตก / หมดเวลา</th><th>เหลือพลังศัตรูตอนแพ้</th><th>เวลาชนะเฉลี่ย</th><th>ออกกลางด่าน</th></tr>'+
+  d.stages.map(s=>{const done=s.wins+s.losses,w=pct(s.wins,done);return `<tr><td>${stageName(s.stage)}</td><td>${s.players}</td><td>${s.winners}</td><td>${first?pct(s.players,first)+'%':'–'}</td><td>${s.plays}</td><td>${w??'–'}${w==null?'':'%'}</td><td class="barcell">${bar(w,w!=null&&w<40?'bad':w!=null&&w<60?'warn':'')}</td><td>${s.lost_base} / ${s.lost_time}</td><td>${s.loss_enemy_hp==null?'–':s.loss_enemy_hp+'%'}</td><td>${mins(s.win_secs)}</td><td>${s.left_mid}</td></tr>`}).join('');
+ const players=d.furthest.reduce((a,x)=>a+x.players,0);
+ $('furthest').innerHTML='<tr><th>ผ่านแล้ว</th><th>ผู้เล่น</th><th class="barcell"></th><th>เลิกเล่นแล้ว</th><th>ยังเล่นอยู่</th></tr>'+
+  d.furthest.map(x=>{const label=x.cleared==null?'ยังไม่รู้':x.cleared===0?'ยังไม่ผ่านด่านไหน':x.cleared>=5?'ผ่านครบทุกด่าน':`ผ่าน ${x.cleared} ด่าน (ติดด่าน ${String(x.cleared+1).padStart(2,'0')})`;
+   return `<tr><td>${label}</td><td>${x.players}</td><td class="barcell">${bar(pct(x.players,players))}</td><td>${x.stopped}</td><td>${x.players-x.stopped}</td></tr>`}).join('');
+ $('sessions').innerHTML='<tr><th>วัน</th><th>ครั้งที่เปิดเล่น</th><th>เวลาเฉลี่ย/ครั้ง</th><th>เวลารวม</th></tr>'+
+  d.sessions.slice().reverse().map(s=>`<tr><td>${esc(s.day)}</td><td>${s.sessions}</td><td>${mins(s.avg_secs)}</td><td>${mins(s.total_secs)}</td></tr>`).join('');
+ $('builds').innerHTML='<tr><th>เวอร์ชัน</th><th>ผู้เล่น</th></tr>'+d.builds.map(b=>`<tr><td>${esc(b.build||'?')}</td><td>${b.players}</td></tr>`).join('');
+}
+</script>
+</body>
+</html>
