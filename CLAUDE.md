@@ -9,6 +9,8 @@ The owner writes Thai; reply in Thai.
 - `little-rescue-sideview-save-v2` (save-store.js): its sanitizer keeps only `{energy, progress:{coins,rescued}, roster}`,
   and older builds strip unknown fields, so never add data to it. New data goes in its own key, like
   `little-rescue-meta-v1` (`{v, cleared, levels[5], stage}`, app.js `readMeta`/`writeMeta`).
+  Daily missions + 7-day login (1.8) use `little-rescue-daily-v1` (daily-missions.js); claims are written inside
+  `savedAction` so they hold the save lock.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).

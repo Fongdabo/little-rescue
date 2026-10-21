@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="pwa.css">
 <link rel="stylesheet" href="vehicle-preview.css">
 <link rel="stylesheet" href="stages.css">
+<link rel="stylesheet" href="skills.css">
 <link rel="stylesheet" href="fit-screen.css">
 </head>
 <body>
@@ -62,6 +63,10 @@
           <small id="modalNote">เลือก Manual หรือ Auto ด้านบนได้ทันที</small>
         </section>
       </div>
+      <div class="field-skills" id="fieldSkills" hidden>
+        <button type="button" class="skill-button flux-up" id="fluxUpBtn" title="อัปการผลิตละอองใบไม้ (U)" aria-label="อัปการผลิตละอองใบไม้"><span aria-hidden="true">⬆</span><b>ขั้น 1</b><small>❧ 20</small></button>
+        <button type="button" class="skill-button blast" id="blastBtn" title="ยิงปืนใหญ่รถแคมป์ ใส่ศัตรูทั้งสนาม (B)" aria-label="ยิงปืนใหญ่รถแคมป์"><span aria-hidden="true">💥</span><b>ปืนใหญ่</b><small>0%</small></button>
+      </div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
     </div>
     <div class="battle-caption"><span id="modeHint">Manual · แตะเรียกเพื่อนเอง ทีมเดินและโจมตีอัตโนมัติ</span><span id="killText">หยุดพักได้ทุกเวลา</span></div>
@@ -71,7 +76,7 @@
     </section>
   </section>
 
-  <footer><p><b>ต้นแบบห้าด่าน</b> · ภาพทีม ศัตรู และรถฐานเป็นตัวเลือกปัจจุบัน เปลี่ยนภายหลังได้</p><details><summary>วิธีเล่นและค่าตัวอย่าง</summary><div class="help-copy"><p>Manual: แตะการ์ดเพื่อนหรือกด 1–5 เพื่อเรียกทีม ตัวละครจะเดินและโจมตีเอง ใช้ละอองใบไม้ซึ่งฟื้นระหว่างการต่อสู้ ส่วน Auto จะเรียกทีมด้วยต้นทุนและคูลดาวน์เดียวกัน สลับโหมดได้ฟรี กด P / Escape เพื่อพัก</p><p>รถฐานจอดส่งทีมขณะต่อสู้ เมื่อฐาน Mushroom เหลือ 0 เพื่อนฉลองแล้ววิ่งขึ้นรถ รอขึ้นครบ รถออกจากฉาก แล้วจึงแสดงรางวัล แพ้เมื่อรถฐานเราเหลือ 0 หรือหมดเวลา รถฐานของเราและฐาน Mushroom มีปืนสนับสนุนอัตโนมัติ ยิงเฉพาะยูนิตฝ่ายตรงข้าม</p><p id="balanceNote">ค่าตัวอย่างกำลังโหลด…</p><p>ทีมทดลองเรียกได้ครบทุกตัวตั้งแต่ต้น เพื่อนที่ช่วยได้เพิ่มในคอลเลกชันสาธิต การช่วยเพื่อนไม่ใช่เงื่อนไขปลดล็อกตัวรักษาในต้นแบบนี้ เมื่อเล่นซ้ำไม่เพิ่มเพื่อนซ้ำ</p><p id="storageNote">กำลังตรวจที่เก็บข้อมูล…</p><p>ต้นแบบสาธิตในเครื่อง ไม่มีเงินจริง การซื้อ NFT หรือกระเป๋าเงิน ไม่เชื่อมบริการภายนอก</p></div></details><span class="build-label">SIDEVIEW / RELEASE 1.7.2</span></footer>
+  <footer><p><b>ต้นแบบห้าด่าน</b> · ภาพทีม ศัตรู และรถฐานเป็นตัวเลือกปัจจุบัน เปลี่ยนภายหลังได้</p><details><summary>วิธีเล่นและค่าตัวอย่าง</summary><div class="help-copy"><p>Manual: แตะการ์ดเพื่อนหรือกด 1–5 เพื่อเรียกทีม ตัวละครจะเดินและโจมตีเอง ใช้ละอองใบไม้ซึ่งฟื้นระหว่างการต่อสู้ ส่วน Auto จะเรียกทีมด้วยต้นทุนและคูลดาวน์เดียวกัน สลับโหมดได้ฟรี กด P / Escape เพื่อพัก</p><p>ปุ่มบนสนาม: ⬆ อัปการผลิตละอองใบไม้ (กด U) จ่ายด้วยละอองในรอบนั้น ฟื้นเร็วขึ้นและเก็บได้มากขึ้น · 💥 ปืนใหญ่รถแคมป์ (กด B) ชาร์จเต็มแล้วยิงใส่ศัตรูทั้งสนาม · ด่าน 5 มีบอสราชาเห็ดยักษ์ออกมาเฝ้าฐาน</p><p>รถฐานจอดส่งทีมขณะต่อสู้ เมื่อฐาน Mushroom เหลือ 0 เพื่อนฉลองแล้ววิ่งขึ้นรถ รอขึ้นครบ รถออกจากฉาก แล้วจึงแสดงรางวัล แพ้เมื่อรถฐานเราเหลือ 0 หรือหมดเวลา รถฐานของเราและฐาน Mushroom มีปืนสนับสนุนอัตโนมัติ ยิงเฉพาะยูนิตฝ่ายตรงข้าม</p><p id="balanceNote">ค่าตัวอย่างกำลังโหลด…</p><p>ทีมทดลองเรียกได้ครบทุกตัวตั้งแต่ต้น เพื่อนที่ช่วยได้เพิ่มในคอลเลกชันสาธิต การช่วยเพื่อนไม่ใช่เงื่อนไขปลดล็อกตัวรักษาในต้นแบบนี้ เมื่อเล่นซ้ำไม่เพิ่มเพื่อนซ้ำ</p><p id="storageNote">กำลังตรวจที่เก็บข้อมูล…</p><p>ต้นแบบสาธิตในเครื่อง ไม่มีเงินจริง การซื้อ NFT หรือกระเป๋าเงิน ไม่เชื่อมบริการภายนอก</p></div></details><span class="build-label">SIDEVIEW / RELEASE 1.8.0</span></footer>
 <details class="pwa-tools" id="pwaTools"><summary>ติดตั้ง อัปเดต และสำรองเซฟ</summary>
 <p id="pwaStatus" role="status" aria-live="polite">กำลังเตรียมโหมดเว็บแอป…</p>
 <div class="pwa-actions"><button id="installBtn" hidden>เพิ่มไอคอนเกม</button><button id="checkUpdateBtn">ตรวจอัปเดต</button><button id="applyUpdateBtn" hidden disabled>เปิดรุ่นใหม่</button></div>
@@ -80,7 +85,7 @@
 <div class="pwa-actions"><button id="exportSaveBtn" disabled>ส่งออกเซฟ JSON</button><label class="file-button">เลือกไฟล์เซฟ <input id="importSaveInput" type="file" accept=".json,application/json" disabled></label></div>
 <p id="transferStatus" role="status" aria-live="polite">นำเข้าได้ก่อนเริ่มหรือเมื่อจบรอบและรับรางวัลแล้วเท่านั้น</p>
 <dialog id="importDialog"><h2>ตรวจเซฟก่อนนำเข้า</h2><pre id="importPreview"></pre><p class="warning">การยืนยันจะแทนที่เซฟของเว็บนี้ เก็บไฟล์ส่งออกเดิมไว้ก่อน หากมีแท็บอื่นกำลังสู้ให้จบรอบก่อน</p><div class="pwa-actions"><button id="confirmImportBtn">ยืนยันแทนที่เซฟ</button><button id="cancelImportBtn">ยกเลิก</button></div></dialog>
-<p class="pwa-build">PWA ทดลอง 1.7.2 · ไม่มีบริการออนไลน์หรือเงินจริง · <a href="README-PWA-TH.txt">วิธีเปิดและข้อจำกัด</a></p></details>
+<p class="pwa-build">PWA ทดลอง 1.8.0 · ไม่มีบริการออนไลน์หรือเงินจริง · <a href="README-PWA-TH.txt">วิธีเปิดและข้อจำกัด</a></p></details>
 </main>
 <div class="mobile-pause-space" aria-hidden="true"><span>พักได้ทุกเวลา</span></div>
 <script src="victory-sequence.js"></script>
@@ -95,6 +100,7 @@
 <script src="animation-state.js"></script>
 <script src="role-icons.js"></script>
 <script src="character-vfx.js"></script>
+<script src="daily-missions.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

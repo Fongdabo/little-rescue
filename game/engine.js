@@ -87,6 +87,9 @@
     // PREVIEW ONLY, editable equal samples for BOTH stationary base cannons.
     // Range is measured from the real base center, not from its muzzle.
     baseCannonRange: 360, baseCannonInterval: 4, baseCannonDamage: 12,
+    // 1.8: production upgrade (paid in flux, resets every battle) and the player's base blast button.
+    fluxLevelMax: 5, fluxUpgradeCosts: [20, 30, 40, 50], fluxRegenStep: 0.3, fluxCapStep: 20,
+    blastChargeTime: 22, blastDamage: 65, blastRange: 1200,
     baseCannonProjectileSpeed: 420, baseCannonMuzzleOffset: 120, baseCannonMuzzleY: 180,
     projectileTargetY: 390, eventHistoryLimit: 160,
     typeAdvantageMultiplier: 1.20, typeDisadvantageMultiplier: 0.85,
@@ -177,7 +180,8 @@
     {id: 'stage-04', number: 4, name: 'ป่าเห็ดสนธยา', grade: 'dusk',
       enemyHP: 800, duration: 105, spawnInterval: 4.4, hpMul: 1.24, damageMul: 1.18, rewardCoins: 75},
     {id: 'stage-05', number: 5, name: 'หอ Mushroom ใต้แสงดาว', grade: 'night',
-      enemyHP: 900, duration: 115, spawnInterval: 4.2, hpMul: 1.32, damageMul: 1.24, rewardCoins: 90}
+      enemyHP: 900, duration: 115, spawnInterval: 4.2, hpMul: 1.32, damageMul: 1.24, rewardCoins: 90,
+      boss: {at: 60, baseRatio: 0.6, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 2, scale: 1.6, speedMul: 0.7}}
   ];
   // Hero level sample: +10% HP, damage and heal per level above 1.
   const LEVELS = {max: 10, step: 0.1, costBase: 20};
@@ -274,6 +278,9 @@
       this.time = 0;
       this.remaining = this.stage.duration;
       this.flux = CONFIG.fluxInitial;
+      this.fluxLevel = 1;
+      this.blastCharge = 0;
+      this.bossSpawned = false;
       this.homeHP = CONFIG.homeHP;
       this.enemyHP = this.stage.enemyHP;
       this.enemyMaxHP = this.stage.enemyHP;
@@ -311,7 +318,8 @@
       this.metrics = {energySpent: 0, summons: 0, fluxSpent: 0,
         summonsByUnit: UNITS.map(() => 0),
         rewardsClaimed: 0, totalDamage: 0, healed: 0, spawnedEnemies: 0,
-        blockedDamage: 0, projectilesFired: 0, projectileHits: 0};
+        blockedDamage: 0, projectilesFired: 0, projectileHits: 0,
+        fluxUpgrades: 0, blasts: 0, blastKills: 0, bossDefeated: false};
       this.metrics.baseShots = 0;
       this.metrics.baseHits = 0;
       this.metrics.baseDamage = 0;
@@ -397,6 +405,45 @@
       return true;
     }
 
+    get fluxCap() { return CONFIG.fluxMax + CONFIG.fluxCapStep * (this.fluxLevel - 1); }
+    get fluxRate() { return CONFIG.fluxRegen * (1 + CONFIG.fluxRegenStep * (this.fluxLevel - 1)); }
+    get fluxUpgradeCost() {
+      return this.fluxLevel >= CONFIG.fluxLevelMax ? null : CONFIG.fluxUpgradeCosts[this.fluxLevel - 1];
+    }
+    get blastReady() { return this.blastCharge + 1e-9 >= CONFIG.blastChargeTime; }
+
+    upgradeFlux() {
+      const cost = this.fluxUpgradeCost;
+      if (this.state !== 'running' || cost === null || this.flux + 1e-9 < cost) return false;
+      this.flux = Math.max(0, this.flux - cost);
+      this.fluxLevel += 1;
+      this.metrics.fluxUpgrades += 1;
+      this._event('flux-upgrade', null, {level: this.fluxLevel, cost});
+      return true;
+    }
+
+    // Player-fired base cannon: neutral damage to every enemy near the camper van. Dead enemies leave at once,
+    // because _step only counts kills among the enemies alive when the tick began.
+    fireBlast() {
+      if (this.state !== 'running' || !this.blastReady) return false;
+      this.blastCharge = 0;
+      this.metrics.blasts += 1;
+      const source = this.baseCannons[0];
+      const targets = this.enemies.filter(enemy => enemy.hp > 0 &&
+        enemy.x - CONFIG.homeX <= CONFIG.blastRange + 1e-9);
+      this._event('base-blast', source, {sourceId: source.id, x: CONFIG.homeX,
+        range: CONFIG.blastRange, targets: targets.map(enemy => enemy.id)});
+      for (const enemy of targets) {
+        this._applyUnitDamage(enemy, CONFIG.blastDamage * (enemy.boss ? 0.5 : 1), source.id, null, 'blast');
+      }
+      const killed = targets.filter(enemy => enemy.hp <= 0);
+      this.kills += killed.length;
+      this.metrics.blastKills += killed.length;
+      if (killed.some(enemy => enemy.boss)) this.metrics.bossDefeated = true;
+      this.enemies = this.enemies.filter(enemy => enemy.hp > 0);
+      return true;
+    }
+
     summon(index) {
       if (this.state !== 'running' || !Number.isInteger(index) || !UNITS[index] ||
           !this.selectedRoster.includes(index)) return false;
@@ -425,25 +472,35 @@
       return true;
     }
 
-    _spawnEnemy() {
-      if (this.enemies.length >= CONFIG.maxEnemies) return;
+    _spawnEnemy(boss) {
+      if (!boss && this.enemies.length >= CONFIG.maxEnemies) return;
       const wave = this.metrics.spawnedEnemies;
-      const index = wave % ENEMIES.length, spec = ENEMIES[index];
-      const hp = (CONFIG.enemyInitialHP + wave * CONFIG.enemyHPGrowth) * spec.hpFactor * this.stage.hpMul;
-      this.enemies.push({id: spec.id + '-' + this.runId + '-' + (++this._serial),
+      const index = boss ? 0 : wave % ENEMIES.length, spec = ENEMIES[index];
+      const hp = (CONFIG.enemyInitialHP + wave * CONFIG.enemyHPGrowth) * spec.hpFactor * this.stage.hpMul *
+        (boss ? boss.hpMul : 1);
+      const enemy = {id: spec.id + '-' + this.runId + '-' + (++this._serial),
         unitId: spec.id, index, kind: spec.kind, type: TYPES[wave % TYPES.length].id,
         classId: spec.classId, classTag: spec.classTag, className: spec.className,
-        faction: 'enemy', name: spec.name,
+        faction: 'enemy', name: boss ? boss.name : spec.name,
         x: CONFIG.enemyX - CONFIG.spawnInset,
-        hp, maxHP: hp, damage: (CONFIG.enemyDamage + wave * CONFIG.enemyDamageGrowth) * spec.damageFactor * this.stage.damageMul,
-        range: spec.range, speed: spec.speed, cooldown: 0.2, healCooldown: 0,
+        hp, maxHP: hp, damage: (CONFIG.enemyDamage + wave * CONFIG.enemyDamageGrowth) * spec.damageFactor *
+          this.stage.damageMul * (boss ? boss.damageMul : 1),
+        range: spec.range, speed: spec.speed * (boss ? boss.speedMul : 1), cooldown: 0.2, healCooldown: 0,
         attackRange: spec.range, stopDistance: spec.stopDistance,
         attackLock: 0, movement: 'hold', targetId: null, targetX: null,
         formationAnchorId: null, formationGap: 0,
         retreatRemaining: ['guard', 'scout'].includes(spec.kind) ? 0 : CONFIG.retreatLimitWithoutScreen,
         _retreatSpent: 0,
         attackFlash: 0, blockFlash: 0, hitFlash: 0, blockedDamage: 0,
-        facing: -1, asset: spec.asset});
+        facing: -1, asset: spec.asset};
+      if (boss) {
+        Object.assign(enemy, {id: 'boss-' + this.runId, boss: true, scale: boss.scale});
+        this.enemies.push(enemy);
+        this.bossSpawned = true;
+        this._event('boss-arrive', enemy, {name: boss.name});
+        return;
+      }
+      this.enemies.push(enemy);
       this.metrics.spawnedEnemies += 1;
     }
 
@@ -699,13 +756,18 @@
       this.time = this._tick * CONFIG.fixedStep;
       this.baseDeployment = Math.min(1, this.time / CONFIG.deployDuration);
       this.remaining = Math.max(0, this.stage.duration - this.time);
-      this.flux = Math.min(CONFIG.fluxMax, this.flux + CONFIG.fluxRegen * dt);
+      this.flux = Math.min(this.fluxCap, this.flux + this.fluxRate * dt);
+      this.blastCharge = Math.min(CONFIG.blastChargeTime, this.blastCharge + dt);
       for (let i = 0; i < this.cooldowns.length; i++) this.cooldowns[i] = Math.max(0, this.cooldowns[i] - dt);
       this.effects = this.effects.filter(effect => (effect.ttl -= dt) > 0);
       while (this.time + 1e-9 >= this._nextEnemy) {
         this._spawnEnemy();
         this._nextEnemy += this.stage.spawnInterval;
       }
+      const boss = this.stage.boss;
+      // The boss guards the enemy base: it comes out when the base drops to boss.baseRatio, or at boss.at seconds.
+      if (boss && !this.bossSpawned && (this.time + 1e-9 >= boss.at ||
+          this.enemyHP <= this.enemyMaxHP * boss.baseRatio)) this._spawnEnemy(boss);
       if (this.mode === 'auto' && this.time + 1e-9 >= this._nextAuto) {
         // Save up for the next role so cheap units cannot starve costly ones.
         // This rotates the selected roster and calls exactly the player's API.
@@ -864,6 +926,7 @@
         }
       }
       this.kills += livingEnemies.filter(enemy => enemy.hp <= 0).length;
+      if (livingEnemies.some(enemy => enemy.boss && enemy.hp <= 0)) this.metrics.bossDefeated = true;
       this.allies = livingAllies.filter(unit => unit.hp > 0);
       this.enemies = livingEnemies.filter(unit => unit.hp > 0);
 
