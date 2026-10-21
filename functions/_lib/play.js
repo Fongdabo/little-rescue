@@ -5,7 +5,8 @@
 // Not a route: this file exports no onRequest handler.
 
 import {apply, getWallet, ensureWallet} from './wallet.js';
-import {UNIT_IDS, BASE_HEROES, UNLOCK, STAGE_REWARDS, LEVELS, levelCost, STARS, SUMMON, MISSIONS, LOGIN, PLAY, MAX_SHARDS, rollSummon} from './economy.js';
+import {UNIT_IDS, BASE_HEROES, UNLOCK, STAGE_REWARDS, LEVELS, levelCost, STARS, SUMMON, MISSIONS, LOGIN, PLAY, MAX_SHARDS, rollSummon,
+  WEEKLY, weekOf, weeklyEvent} from './economy.js';
 import {eventBonus} from './live.js';
 
 const DAY = 86400000;
@@ -21,12 +22,19 @@ function random() { const a = new Uint32Array(1); crypto.getRandomValues(a); ret
 function randomId() { const a = crypto.getRandomValues(new Uint8Array(16)); return Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); }
 
 // Per-day counters for daily missions, keyed by the player's day; only the last 8 days are kept.
+// 1.17: days.week = {id, wins, chest} holds the current weekly event week; it is not a day and is never pruned.
 function dayEntry(w, day) {
   const entry = w.days[day] || (w.days[day] = {wins: 0, summons: 0, levelups: 0, claimed: []});
-  const keep = Object.keys(w.days).sort().slice(-8);
-  for (const key of Object.keys(w.days)) if (!keep.includes(key)) delete w.days[key];
+  const dates = Object.keys(w.days).filter(isDay), keep = dates.sort().slice(-8);
+  for (const key of dates) if (!keep.includes(key)) delete w.days[key];
   return w.days[day] || entry;
 }
+function weekEntry(w, week) {
+  if (!w.days.week || w.days.week.id !== week) w.days.week = {id: week, wins: 0, chest: false};
+  return w.days.week;
+}
+// Run tickets for weekly events use stage numbers from 1000 (1000 + index in WEEKLY.events).
+const EVENT_RUN = 1000;
 const count = (db, playerId, kinds, since) => db.prepare(
   `SELECT COUNT(*) AS n FROM ledger WHERE player_id = ? AND at >= ? AND kind IN (${kinds.map(() => '?').join(', ')})`)
   .bind(playerId, since, ...kinds).first().then(row => row?.n || 0);
@@ -59,11 +67,16 @@ export async function seed(db, playerId, body, now = Date.now()) {
 }
 
 // A run ticket: the server's own clock for how long a battle took.
-export async function startRun(db, playerId, stage, now = Date.now()) {
+export async function startRun(db, playerId, stage, now = Date.now(), event = null) {
   await ensureWallet(db);
   const w = await getWallet(db, playerId);
   if (!w?.seeded) return {error: 'no-wallet'};
-  if (!int(stage, 0, STAGE_REWARDS.length - 1) || stage > w.cleared) return {error: 'stage-locked'};
+  if (event !== null && event !== undefined) {
+    // 1.17 weekly event: only this week's event, once its unlock stage is cleared.
+    if (event !== weeklyEvent(now).id) return {error: 'bad-event'};
+    if (w.cleared < WEEKLY.unlock) return {error: 'stage-locked'};
+    stage = EVENT_RUN + WEEKLY.events.findIndex(e => e.id === event);
+  } else if (!int(stage, 0, STAGE_REWARDS.length - 1) || stage > w.cleared) return {error: 'stage-locked'};
   const recent = await db.prepare('SELECT COUNT(*) AS n FROM runs WHERE player_id = ? AND started_at >= ?').bind(playerId, now - 3600000).first();
   if ((recent?.n || 0) >= PLAY.runsPerHour) return {error: 'rate-limited'};
   const id = randomId();
@@ -79,13 +92,14 @@ export async function applyOp(db, playerId, op, now = Date.now()) {
   if (!op || typeof op !== 'object' || !OP_ID.test(op.id || '')) return {id: op?.id ?? null, ok: false, error: 'bad-op'};
   const ref = `op:${playerId}:${op.id}`, day = op.day;
   let run = null, recentWins = 0, todayWins = 0, offlineWins = 0;
-  if (op.kind === 'win') {
+  if (op.kind === 'win' || op.kind === 'event') {
     if (typeof op.run === 'string' && /^[0-9a-f]{32}$/.test(op.run))
       run = await db.prepare('SELECT stage, started_at, claimed_at FROM runs WHERE id = ? AND player_id = ?').bind(op.run, playerId).first();
-    [recentWins, todayWins, offlineWins] = await Promise.all([count(db, playerId, ['win', 'win-offline'], now - 3600000),
-      count(db, playerId, ['win', 'win-offline'], now - DAY), count(db, playerId, ['win-offline'], now - DAY)]);
+    const wins = ['win', 'win-offline', 'event', 'event-offline'], offline = ['win-offline', 'event-offline'];
+    [recentWins, todayWins, offlineWins] = await Promise.all([count(db, playerId, wins, now - 3600000),
+      count(db, playerId, wins, now - DAY), count(db, playerId, offline, now - DAY)]);
   }
-  const kind = op.kind === 'win' && !run ? 'win-offline' : String(op.kind || '').slice(0, 20);
+  const kind = (op.kind === 'win' || op.kind === 'event') && !run ? op.kind + '-offline' : String(op.kind || '').slice(0, 20);
   // 1.16 events from the admin page: the coin bonus running when the reward was claimed (live.js), as the game adds it.
   const bonus = op.kind === 'win' ? await eventBonus(db, run ? now : Math.min(now, Number(op.at) || now)) : 0;
 
@@ -111,6 +125,45 @@ export async function applyOp(db, playerId, op, now = Date.now()) {
         w.coins += reward; w.cleared = Math.max(w.cleared, stage + 1);
         if (nearToday(day, now)) { const d = dayEntry(w, day); d.wins += 1; d.summons += int(op.summons, 0, 300) ? op.summons : 0; }
         return {detail: {stage, battle, run: op.run || null, bonus}, result: {coins: reward}, statements};
+      }
+      case 'event': {
+        // 1.17 weekly event win: the event of the week the battle was played in (server clock for a run ticket).
+        const at = run ? run.started_at : op.at, battle = op.battle;
+        if (!Number.isFinite(at)) return 'too-old';
+        const event = weeklyEvent(at), index = WEEKLY.events.indexOf(event), week = weekOf(at);
+        if (op.event !== event.id) return 'bad-event';
+        if (w.cleared < WEEKLY.unlock) return 'stage-locked';
+        if (!Number.isFinite(battle) || battle < PLAY.minBattleSeconds || battle > 7200) return 'too-fast';
+        if (recentWins >= PLAY.winsPerHour || todayWins >= PLAY.winsPerDay) return 'rate-limited';
+        const statements = [];
+        if (run) {
+          if (run.claimed_at || run.stage !== EVENT_RUN + index) return 'bad-run';
+          const real = (now - run.started_at) / 1000;
+          if (real < PLAY.minRealSeconds || real < battle / 2 - 5) return 'too-fast';
+          statements.push(db.prepare('UPDATE runs SET claimed_at = ? WHERE id = ?').bind(now, op.run));
+        } else {
+          if (op.at > now + 300000 || op.at < now - PLAY.offlineMaxAgeMs) return 'too-old';
+          if (offlineWins >= PLAY.offlineWinsPerDay) return 'rate-limited';
+        }
+        // The first paidPerDay event wins of the player's day pay; the rest still count for the week chest.
+        let coins = 0;
+        if (nearToday(day, now)) {
+          const d = dayEntry(w, day);
+          d.events = d.events || 0;
+          if (d.events < WEEKLY.paidPerDay) coins = event.coins;
+          d.events += 1; d.wins += 1; d.summons += int(op.summons, 0, 300) ? op.summons : 0;
+        }
+        if (week === weekOf(now)) weekEntry(w, week).wins += 1;
+        w.coins += coins;
+        return {detail: {event: event.id, week, battle, run: op.run || null}, result: {coins}, statements};
+      }
+      case 'event-chest': {
+        const week = weekOf(now), entry = weekEntry(w, week);
+        if (op.week !== week) return 'bad-week';
+        if (entry.chest) return 'claimed';
+        if (entry.wins < WEEKLY.chestWins) return 'not-done';
+        entry.chest = true; w.coins += WEEKLY.chestCoins;
+        return {detail: {week}, result: {coins: WEEKLY.chestCoins}};
       }
       case 'loss': {
         // Only feeds the "call friends 20 times" mission.

@@ -103,9 +103,9 @@
 
  // A run ticket lets the server time the battle with its own clock. Without one (offline) a win is still
  // accepted, under a lower daily limit.
- async function startRun(runId,stage){
+ async function startRun(runId,stage,event=null){
   const a=account(),s=read();if(!a||!enabled||!s?.server||!navigator.onLine)return;
-  try{const r=await api('wallet/run',a.token,{stage});if(r.status===200&&r.data.run)runs.set(runId,r.data.run)}catch{}
+  try{const r=await api('wallet/run',a.token,event?{event}:{stage});if(r.status===200&&r.data.run)runs.set(runId,r.data.run)}catch{}
   if(runs.size>20)runs.delete(runs.keys().next().value);
  }
  const runFor=runId=>runs.get(runId)||null;

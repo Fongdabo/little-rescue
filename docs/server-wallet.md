@@ -41,7 +41,7 @@ including the summon algorithm.
 | `GET /api/health` | | `{ok, cloud, wallet}`; `wallet: true` = this server checks coins |
 | `GET /api/wallet` | | `{playerId, wallet}`; `wallet` is `null` until seeded |
 | `POST /api/wallet/seed` | `{coins, levels[5], cleared, units, sinceLegend, pulls, freeDay, login}` | `{playerId, wallet}` (a second seed changes nothing) |
-| `POST /api/wallet/run` | `{stage}` | `{run, startedAt}`, or 409 `stage-locked` / 429 `rate-limited` |
+| `POST /api/wallet/run` | `{stage}` or `{event}` (1.17 weekly event id) | `{run, startedAt}`, or 409 `stage-locked` / `bad-event` / 429 `rate-limited` |
 | `POST /api/wallet/ops` | `{ops: [...]}` (max 50, applied in order) | `{results: [{id, ok, error?, duplicate?, result?}], wallet}` |
 
 The wallet the game sees: `{rev, seeded, coins, gems, fp, cleared, levels, units: {<unitId>: {star, shards}},
@@ -53,6 +53,8 @@ Every op has `id` (8–64 of `A-Z a-z 0-9 _ -`, chosen by the device; the same i
 | kind | fields | effect |
 |---|---|---|
 | `win` | `stage, battle` (seconds), `summons`, `run?`, `at` | + stage reward, unlocks the next stage |
+| `event` | `event` (this week's id), `battle`, `summons`, `run?`, `at` | 1.17: + event reward for the first 3 event wins of the day, 0 after; +1 week win |
+| `event-chest` | `week` (`weekOf(now)`) | 1.17: + 200 coins once a week after 5 event wins |
 | `loss` | `stage, summons` | counts calls for the daily mission only |
 | `level` | `unit` (0–4), `level` (current) | − 20 × level coins, level + 1 |
 | `star` | `unit` (id), `star` (current) | − shards and coins, star + 1 |
@@ -60,7 +62,11 @@ Every op has `id` (8–64 of `A-Z a-z 0-9 _ -`, chosen by the device; the same i
 | `daily` | `mission: 'login' | 'wins' | 'summons' | 'levelups'` | + reward |
 
 Errors: `no-wallet`, `stage-locked`, `too-fast`, `too-old`, `rate-limited`, `bad-run`, `stale` (the device's
-level/star was out of date), `insufficient`, `max`, `used`, `claimed`, `not-done`, `bad-day`, `busy`.
+level/star was out of date), `insufficient`, `max`, `used`, `claimed`, `not-done`, `bad-day`, `bad-event`, `bad-week`, `busy`.
+
+The weekly event of a win is the one running when its run ticket started (or at `at` when played offline);
+weeks start Monday 00:00 Thai time (`weekOf` in economy.js, the same as engine.js). Week progress is `days.week`
+`{id, wins, chest}` in the wallet row; event wins also count for the daily "wins" mission.
 
 ## For other server features (shop, friends, admin)
 

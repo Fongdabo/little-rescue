@@ -10,6 +10,10 @@
   {id:'book',icon:'📖',label:'สะสม'},{id:'summon',icon:'✨',label:'สุ่ม'},{id:'missions',icon:'📋',label:'ภารกิจ'},
   {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน'},{id:'gifts',icon:'🎁',label:'ของขวัญ'}];
  const typeName={stone:'หินอุ่น',star:'แสงดาว',wind:'สายลม'};
+ // 1.17: one card per stage boss (engine.js STAGES[].boss).
+ const BOSSES=[{name:'ราชาเห็ดยักษ์',stage:'05',when:'ฐานเหลือ 60%',tip:'ปืนใหญ่ + ฝนลูกสน'},
+  {name:'นักธนูเห็ดหิมะ',stage:'07',when:'ฐานเหลือ 70%',tip:'ตัวว่องไววิ่งเข้าประชิด'},
+  {name:'ราชินีเห็ดน้ำแข็ง',stage:'10',when:'ฐานเหลือ 60%',tip:'ล้มเร็ว ก่อนลูกน้องมาเพิ่ม'}];
  let app=null,tab='adventure',bar=null,items=null,book=null;
 
  function setTab(id){
@@ -42,8 +46,8 @@
    return `<div class="book-card type-${u.type}${u.sticker?' sticker':''}"><img src="${assetURL(u.asset)}" alt=""><b>${u.name}</b>
     <small>${u.role} · ${typeName[u.type]||''}</small><span class="book-lv">Lv ${lv}</span><span class="book-stars" aria-label="${star} ดาว">${'★'.repeat(star)}</span>
     <dl><dt>HP</dt><dd>${Math.round(u.hp*p)}</dd><dt>พลัง</dt><dd>${Math.round(u.damage*p)}</dd><dt>ค่าเรียก</dt><dd>❧ ${u.cost}</dd></dl></div>`}).join('')+
-   `<div class="book-card boss"><span class="book-boss" aria-hidden="true">👑</span><b>ราชาเห็ดยักษ์</b><small>บอสด่าน 05</small><span class="book-lv">บอส</span>
-    <dl><dt>ออกมา</dt><dd>ฐานเหลือ 60%</dd><dt>แพ้ทาง</dt><dd>ปืนใหญ่ + ฝนลูกสน</dd></dl></div>`;
+   BOSSES.map(b=>`<div class="book-card boss"><span class="book-boss" aria-hidden="true">👑</span><b>${b.name}</b><small>บอสด่าน ${b.stage}</small><span class="book-lv">บอส</span>
+    <dl><dt>ออกมา</dt><dd>${b.when}</dd><dt>แพ้ทาง</dt><dd>${b.tip}</dd></dl></div>`).join('');
  }
  function refresh(){
   if(!bar)return;

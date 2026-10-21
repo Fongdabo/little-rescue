@@ -220,8 +220,55 @@
       enemyHP: 800, duration: 105, spawnInterval: 4.4, hpMul: 1.24, damageMul: 1.18, rewardCoins: 75},
     {id: 'stage-05', number: 5, name: 'หอ Mushroom ใต้แสงดาว', grade: 'night',
       enemyHP: 900, duration: 115, spawnInterval: 4.2, hpMul: 1.32, damageMul: 1.24, rewardCoins: 90,
-      boss: {at: 60, baseRatio: 0.6, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 2, scale: 1.6, speedMul: 0.7}}
+      boss: {at: 60, baseRatio: 0.6, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 2, scale: 1.6, speedMul: 0.7}},
+    // 1.17 chapter 2 on the world map. A boss may use another enemy class (enemy = ENEMIES index, default 0),
+    // and calls = seconds between the extra enemies it calls while alive. aura only colours it on screen.
+    {id: 'stage-06', number: 6, chapter: 2, name: 'เชิงเขาหมอกขาว', grade: 'mist',
+      enemyHP: 1000, duration: 120, spawnInterval: 4.1, hpMul: 1.45, damageMul: 1.32, rewardCoins: 105},
+    {id: 'stage-07', number: 7, chapter: 2, name: 'ลานสนหิมะ', grade: 'snow',
+      enemyHP: 1100, duration: 125, spawnInterval: 4, hpMul: 1.56, damageMul: 1.4, rewardCoins: 120,
+      boss: {at: 55, baseRatio: 0.7, name: 'นักธนูเห็ดหิมะ', enemy: 2, hpMul: 3, damageMul: 1.7, scale: 1.4, speedMul: 0.8,
+        aura: '#bfe6ff'}},
+    {id: 'stage-08', number: 8, chapter: 2, name: 'ทะเลสาบน้ำแข็ง', grade: 'ice',
+      enemyHP: 1200, duration: 130, spawnInterval: 3.9, hpMul: 1.68, damageMul: 1.48, rewardCoins: 135},
+    {id: 'stage-09', number: 9, chapter: 2, name: 'ถ้ำคริสตัล', grade: 'crystal',
+      enemyHP: 1300, duration: 135, spawnInterval: 3.8, hpMul: 1.74, damageMul: 1.52, rewardCoins: 150},
+    {id: 'stage-10', number: 10, chapter: 2, name: 'ปราสาทแสงเหนือ', grade: 'aurora',
+      enemyHP: 1500, duration: 145, spawnInterval: 3.7, hpMul: 1.74, damageMul: 1.5, rewardCoins: 180,
+      boss: {at: 65, baseRatio: 0.6, name: 'ราชินีเห็ดน้ำแข็ง', enemy: 4, hpMul: 5, damageMul: 2, scale: 1.7, speedMul: 0.7,
+        calls: 9, aura: '#c9b6ff'}}
   ];
+  // 1.17 world map chapters; a stage without chapter is in chapter 1.
+  const CHAPTERS = [
+    {number: 1, name: 'ทุ่งหญ้าสายลม', icon: '🌼', text: 'ทุ่งดอกไม้ ลำธาร และหอ Mushroom'},
+    {number: 2, name: 'หุบเขาหิมะ', icon: '❄️', text: 'ภูเขาหิมะ ทะเลสาบน้ำแข็ง และปราสาทแสงเหนือ'}
+  ];
+  STAGES.forEach(stage => { stage.chapter = stage.chapter || 1; });
+  // 1.17 weekly event stage, like LINE Rangers' event stages: one of WEEKLY.events each week (Monday 00:00 Thai time),
+  // open once stage WEEKLY.unlock is cleared. The first WEEKLY.paidPerDay wins a day pay rewardCoins, later wins
+  // pay nothing; WEEKLY.chestWins wins in one week open a chest of WEEKLY.chestCoins once. The server wallet
+  // (functions/_lib/economy.js WEEKLY) has the same numbers and the same weekOf().
+  const WEEKLY = {unlock: 3, paidPerDay: 3, chestWins: 5, chestCoins: 200, events: [
+    {id: 'event-gold', event: true, number: 'EV', chapter: 0, name: 'ทุ่งเหรียญทอง', grade: 'golden', icon: '💰',
+      text: 'ศัตรูมาเยอะแต่ตัวบาง เก็บเหรียญให้เต็มกระเป๋า',
+      enemyHP: 650, duration: 90, spawnInterval: 3.6, hpMul: 0.75, damageMul: 0.8, rewardCoins: 90},
+    {id: 'event-king', event: true, number: 'EV', chapter: 0, name: 'ราชาเห็ดคืนชีพ', grade: 'night', icon: '👑',
+      text: 'ราชาเห็ดยักษ์ออกมาตั้งแต่ต้นด่าน เตรียมปืนใหญ่ไว้',
+      enemyHP: 700, duration: 100, spawnInterval: 4.6, hpMul: 1, damageMul: 0.95, rewardCoins: 120,
+      boss: {at: 20, baseRatio: 0.95, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 1.8, scale: 1.6, speedMul: 0.7}},
+    {id: 'event-storm', event: true, number: 'EV', chapter: 0, name: 'พายุเห็ดบุก', grade: 'sunset', icon: '🌪️',
+      text: 'ศัตรูวิ่งเข้ามาไม่หยุด ส่งตัวกันหน้าไว้ก่อน',
+      enemyHP: 750, duration: 100, spawnInterval: 3.3, hpMul: 0.7, damageMul: 0.85, rewardCoins: 110},
+    {id: 'event-snow', event: true, number: 'EV', chapter: 0, name: 'เทศกาลหิมะแรก', grade: 'snow', icon: '⛄',
+      text: 'ราชินีเห็ดน้ำแข็งมาเยือนทุ่ง เรียกลูกน้องตลอด',
+      enemyHP: 800, duration: 100, spawnInterval: 4.4, hpMul: 1.15, damageMul: 1.1, rewardCoins: 120,
+      boss: {at: 40, baseRatio: 0.7, name: 'ราชินีเห็ดน้ำแข็ง', enemy: 4, hpMul: 4.5, damageMul: 1.8, scale: 1.6, speedMul: 0.7,
+        calls: 10, aura: '#c9b6ff'}}
+  ]};
+  // Week number counted from Monday 1970-01-05 00:00 in Thai time (UTC+7). ms = Date.now().
+  const weekOf = ms => Math.floor((ms + 7 * 3600000 - 4 * 86400000) / (7 * 86400000));
+  const weeklyEvent = ms => WEEKLY.events[((weekOf(ms) % WEEKLY.events.length) + WEEKLY.events.length) % WEEKLY.events.length];
+  const weekEnds = ms => (weekOf(ms) + 1) * 7 * 86400000 + 4 * 86400000 - 7 * 3600000;
   // 1.9 battle items, like LINE Rangers' pre-battle items: free, each usable once per battle, chosen before it.
   const ITEMS = [
     {id: 'meteor', name: 'ฝนลูกสน', icon: '☄️', text: 'ลูกสนตกใส่ศัตรู 3 ตัวหน้าสุด แรง 120'},
@@ -328,6 +375,7 @@
       this.runId = 0;
       this.lastError = '';
       this.stageIndex = 0;
+      this.eventStage = null;
       this.levels = UNITS.map(() => 1);
       this.stars = UNITS.map(() => 1);
       this.equippedItems = ITEMS.map(item => item.id);
@@ -335,12 +383,22 @@
       this._resetFields();
     }
 
-    get stage() { return STAGES[this.stageIndex] || STAGES[0]; }
+    get stage() { return this.eventStage || STAGES[this.stageIndex] || STAGES[0]; }
 
     setStage(index) {
       if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
       if (!Number.isInteger(index) || !STAGES[index]) return false;
       this.stageIndex = index;
+      this.eventStage = null;
+      if (this.state === 'ready') this._resetFields();
+      return true;
+    }
+
+    // 1.17: play a WEEKLY event stage instead of the selected map stage (stageIndex is kept for the map).
+    setEventStage(spec) {
+      if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
+      if (!spec || !WEEKLY.events.includes(spec)) return false;
+      this.eventStage = spec;
       if (this.state === 'ready') this._resetFields();
       return true;
     }
@@ -424,6 +482,7 @@
       this._serial = 0;
       this._nextEnemy = CONFIG.enemyFirstSpawn;
       this._nextAuto = 0;
+      this._nextBossCall = Infinity;
       this._autoIndex = 0;
       this._travelTick = 0;
       this._resumeState = 'running';
@@ -657,7 +716,7 @@
     _spawnEnemy(boss) {
       if (!boss && this.enemies.length >= CONFIG.maxEnemies) return;
       const wave = this.metrics.spawnedEnemies;
-      const index = boss ? 0 : wave % ENEMIES.length, spec = ENEMIES[index];
+      const index = boss ? boss.enemy || 0 : wave % ENEMIES.length, spec = ENEMIES[index];
       const rage = this.rage;
       const hp = (CONFIG.enemyInitialHP + wave * CONFIG.enemyHPGrowth) * spec.hpFactor * this.stage.hpMul *
         (boss ? boss.hpMul : 1) * rage;
@@ -677,7 +736,8 @@
         attackFlash: 0, blockFlash: 0, hitFlash: 0, blockedDamage: 0,
         facing: -1, asset: spec.asset};
       if (boss) {
-        Object.assign(enemy, {id: 'boss-' + this.runId, boss: true, scale: boss.scale});
+        Object.assign(enemy, {id: 'boss-' + this.runId, boss: true, scale: boss.scale, aura: boss.aura || null});
+        this._nextBossCall = this.time + (boss.calls || 0);
         this.enemies.push(enemy);
         this.bossSpawned = true;
         this._event('boss-arrive', enemy, {name: boss.name});
@@ -957,6 +1017,13 @@
       // The boss guards the enemy base: it comes out when the base drops to boss.baseRatio, or at boss.at seconds.
       if (boss && !this.bossSpawned && (this.time + 1e-9 >= boss.at ||
           this.enemyHP <= this.enemyMaxHP * boss.baseRatio)) this._spawnEnemy(boss);
+      // 1.17: a calling boss brings one more enemy every boss.calls seconds while it is alive.
+      if (boss && boss.calls && this.bossSpawned && this.time + 1e-9 >= this._nextBossCall &&
+          this.enemies.some(enemy => enemy.boss && enemy.hp > 0)) {
+        this._nextBossCall += boss.calls;
+        this._spawnEnemy();
+        this._event('boss-call', this.enemies.find(enemy => enemy.boss), {name: boss.name});
+      }
       if (this.mode === 'auto' && this.time + 1e-9 >= this._nextAuto) {
         // Save up for the next role so cheap units cannot starve costly ones.
         // This rotates the selected roster and calls exactly the player's API.
@@ -1129,12 +1196,13 @@
       if (this.state !== 'running') this.projectiles = [];
     }
 
-    claimReward() {
+    // coins: what this win pays when the caller knows better than the stage (a weekly event past its daily paid wins).
+    claimReward(coins) {
       if (this.state !== 'won' || this.claimed) return false;
       // Mark first, then mutate balances, so repeated handlers remain idempotent.
       this.claimed = true;
-      const reward = {coins: this.stage.rewardCoins, cookies: CONFIG.rewardCookies,
-        friend: !this.progress.rescued, stageIndex: this.stageIndex};
+      const reward = {coins: Number.isInteger(coins) && coins >= 0 ? coins : this.stage.rewardCoins, cookies: CONFIG.rewardCookies,
+        friend: !this.progress.rescued, stageIndex: this.stageIndex, event: this.stage.event ? this.stage.id : null};
       this.bank.add(reward.cookies);
       this.progress.coins += reward.coins;
       this.progress.rescued = true;
@@ -1145,6 +1213,6 @@
     }
   }
 
-  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, LEVELS, ITEMS, STARS, SUMMON,
+  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, CHAPTERS, WEEKLY, weekOf, weeklyEvent, weekEnds, LEVELS, ITEMS, STARS, SUMMON,
     levelMultiplier, levelCost, starMultiplier, rollSummon, EnergyBank, Battle};
 }));
