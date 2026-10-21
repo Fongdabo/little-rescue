@@ -1,6 +1,7 @@
 /* 1.9: the start screen becomes a lobby with a bottom tab bar, laid out like LINE Rangers' home menu.
    ผจญภัย (stage, mode, items) · ทีม (roster) · อัปเกรด (levels) · สะสม (hero book) · ภารกิจ (daily dialog);
-   ร้านค้า / เพื่อน / กล่องของขวัญ are placeholders until there is a server. The tabs only show and hide the
+   เพื่อน / กล่องของขวัญ are placeholders until there is a server; ร้านค้า opens when shop.js finds the shop
+   server (enable('shop')). The tabs only show and hide the
    existing start-screen controls, so every save path stays the one app.js already uses. */
 (()=>{
  'use strict';
@@ -19,6 +20,7 @@
   bar.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===id)));
   if(id==='book')renderBook();
   if(id==='summon')window.SideviewSummon?.render();
+  if(id==='shop')window.SideviewShop?.render(true);
   refresh();
  }
  function renderItems(){
@@ -60,5 +62,10 @@
   modal.append(bar);
   refresh();
  }
- window.SideviewLobby={TABS,mount,refresh,setTab,renderBook,get tab(){return tab}};
+ // A placeholder tab becomes a real one once its feature is available (the shop needs its server).
+ function enable(id){
+  const def=TABS.find(t=>t.id===id);if(!def||!def.soon)return;def.soon=false;
+  const button=bar?.querySelector(`[data-tab="${id}"]`);if(button){button.classList.remove('soon');button.querySelector('em')?.remove()}
+ }
+ window.SideviewLobby={TABS,mount,refresh,setTab,enable,renderBook,get tab(){return tab}};
 })();

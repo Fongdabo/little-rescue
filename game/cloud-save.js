@@ -214,6 +214,6 @@
   setInterval(sync,15000);
   start();
  }
- window.SideviewCloud={KEY,sync,pull,mount,paint,get enabled(){return enabled},get conflict(){return conflict},_fingerprint:fingerprint};
+ window.SideviewCloud={KEY,sync,pull,mount,open:()=>render(true),paint,get enabled(){return enabled},get conflict(){return conflict},_fingerprint:fingerprint};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();

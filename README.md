@@ -43,6 +43,35 @@
 
 แนะนำเพิ่ม (ไม่บังคับ): Security › WAF › Rate limiting rules › จำกัด `/api/` เช่น 60 ครั้งต่อนาทีต่อ IP กันคนยิงสร้างบัญชีรัว ๆ
 
+## ร้านค้าเพชร (เงินจริง · ตั้งแต่รุ่น 1.14.0 · เริ่มที่โหมดทดสอบ)
+
+แท็บ 🏪 ร้านค้าจะเปิดเมื่อมีครบ: ฐานข้อมูล `SAVES_DB` (หัวข้อด้านบน) + กุญแจ Stripe สองตัว ถ้ายังไม่ครบ แท็บยังเป็น "เร็วๆ นี้"
+ผู้ให้บริการ: **Stripe ประเทศไทย** (บัตร + พร้อมเพย์ QR, หน้าชำระเงินของ Stripe เอง เกมไม่แตะข้อมูลบัตร)
+
+1. สมัคร https://dashboard.stripe.com/register เลือกประเทศ **Thailand** (สมัครแบบบุคคลธรรมดาได้ ใช้บัตรประชาชนและบัญชีธนาคารไทย)
+   ช่วงทดสอบไม่ต้องยืนยันตัวตนให้เสร็จ ใช้ **Test mode** (สวิตช์มุมขวาบน) ได้เลย
+2. Settings › Payment methods (ในโหมดทดสอบ) › เปิด **Cards** และ **PromptPay**
+3. Developers › API keys › คัดลอก **Secret key** ที่ขึ้นต้น `sk_test_` (อย่าส่งให้ใครหรือวางในแชต)
+4. Developers › Webhooks › Add endpoint
+   - URL: `https://little-rescue.pages.dev/api/shop/webhook` (ลิงก์ทดลองของ PR ใช้ `https://pr-N.little-rescue.pages.dev/api/shop/webhook` แยกอีกอัน)
+   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
+     `checkout.session.expired`, `charge.refunded`, `charge.dispute.created`
+   - กด Reveal **Signing secret** คัดลอกค่าที่ขึ้นต้น `whsec_`
+5. Cloudflare › Workers & Pages › `little-rescue` › Settings › **Variables and Secrets** › Add (ชนิด **Secret**) ทั้ง Production และ Preview
+   - `STRIPE_SECRET_KEY` = `sk_test_...` · `STRIPE_WEBHOOK_SECRET` = `whsec_...`
+   - (ไม่บังคับ) `SHOP_MONTHLY_LIMIT_THB` = วงเงินต่อผู้เล่นต่อเดือน (ค่าเริ่ม 3000) · `SHOP_METHODS` = `card,promptpay`
+6. Deployments › Retry deployment รอบล่าสุด แล้วเปิด `/api/shop/config` ต้องเห็น `"open":true,"mode":"test"`
+7. ทดลองซื้อ: สร้างบัญชี ☁️ › แท็บร้านค้า › เลือกแพ็ก › บัตร `4242 4242 4242 4242` วันหมดอายุอนาคต CVC อะไรก็ได้ › กลับมาเกม เพชรเข้าเอง
+   ทดลองคืนเงิน: Stripe › Payments › เลือกรายการ › Refund (คืนบางส่วนได้) เพชรถูกหักตามสัดส่วน ดูในประวัติการซื้อ
+
+ความปลอดภัย: ถ้าใส่กุญแจจริง (`sk_live_`) ร้านจะ**ปิดเอง** และ webhook จากโหมดจริงถูกเมิน จนกว่าจะเพิ่ม `SHOP_LIVE` = `1`
+ก่อนเปิดขายจริง: ยืนยันตัวตนใน Stripe ให้ผ่าน, เขียนนโยบายคืนเงินและเงื่อนไขการใช้, ปรึกษานักบัญชีเรื่องภาษี (VAT/ภาษีเงินได้),
+สร้าง webhook และ secret ชุดใหม่ของโหมดจริง แล้วค่อยตั้ง `SHOP_LIVE=1`
+
+ทำงานอย่างไร: เกมเรียก `/api/shop/checkout` › เซิร์ฟเวอร์สร้างคำสั่งซื้อใน `shop_orders` และหน้า Stripe Checkout › ผู้เล่นจ่าย ›
+Stripe เรียก webhook (ตรวจลายเซ็น HMAC + ยอดเงินตรงกับคำสั่งซื้อ) › เติมเพชรเข้ากระเป๋าเงินฝั่งเซิร์ฟเวอร์ (`functions/_lib/wallet.js`)
+ทุกการเติม/หักมีรหัสกันซ้ำ (`pay:`, `refund:`, `dispute:`) Stripe ส่งซ้ำกี่ครั้งก็เติมครั้งเดียว · คืนเงินแล้วเพชรถูกใช้ไปแล้ว ส่วนที่ขาดจะหักจากการซื้อครั้งถัดไป
+โค้ด: `functions/api/shop/[[path]].js` (เซิร์ฟเวอร์), `game/shop.js` (หน้าร้าน)
 ## กันโกง: กระเป๋าเงินบนเซิร์ฟเวอร์ (ตั้งแต่รุ่น 1.13.0)
 
 ไม่ต้องตั้งค่าอะไรเพิ่ม ใช้ฐานข้อมูล `SAVES_DB` เดิม ตารางสร้างให้เองตอนใช้ครั้งแรก
