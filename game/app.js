@@ -124,6 +124,27 @@ $('actionBtn').addEventListener('click',()=>{
 // 1.13 server wallet (wallet.js): a signed-in player's battle gets a run ticket so the server can time it.
 function started(ok){if(ok&&battle.state==='running')window.SideviewWallet?.startRun(battle.runId,battle.stageIndex);return ok}
 $('replayBtn').addEventListener('click',()=>savedAction(()=>{const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}).then(started));
+// 1.12.2: the pause menu can leave the fight (a loss with no reward) or restart it; each asks once before acting.
+let leaveAsk=null;
+function askLeave(kind){
+ leaveAsk=kind;const retry=kind==='retry';
+ $('modalKicker').textContent='ยืนยันก่อน';$('modalTitle').textContent=retry?'เริ่มด่านนี้ใหม่?':'ออกจากด่านนี้?';
+ $('modalCopy').innerHTML=(retry?`รอบนี้จะจบโดยไม่ได้รางวัล และใช้คุกกี้ดาว ${CONFIG.entryCost} ชิ้นเริ่มรอบใหม่`:'รอบนี้จะจบโดยไม่ได้รางวัล คุกกี้ดาวที่ใช้เข้าด่านไม่คืน')+'<br>เหรียญ เลเวล และเพื่อนที่สะสมไว้ยังอยู่ครบ';
+ $('retryBtn').hidden=!retry;$('exitBtn').hidden=retry;$(retry?'retryBtn':'exitBtn').textContent=retry?'ใช่ เริ่มใหม่':'ใช่ ออกจากด่าน';
+ $('actionBtn').textContent='ไม่ใช่ · เล่นต่อ →';$('modalNote').textContent='P / Escape เพื่อเล่นต่อ';$('actionBtn').focus();
+}
+function countRun(){if(countedRun!==battle.runId){countedRun=battle.runId;if(battle.metrics.summons)window.SideviewDaily.bump('summons',battle.metrics.summons);
+ // A win carries its calls in the win op; any other end of a run reports them for the daily mission.
+ if(battle.state!=='won'&&battle.metrics.summons)window.SideviewWallet?.record({kind:'loss',stage:battle.stageIndex,summons:battle.metrics.summons})}}
+$('retryBtn').addEventListener('click',()=>{
+ if(!battle.canAbandon)return;if(leaveAsk!=='retry'){askLeave('retry');return}
+ if(bank.refresh()<CONFIG.entryCost){toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return}
+ countRun();savedAction(()=>{if(!battle.abandon())return false;window.SideviewStats?.observe(battle,meta.cleared);return battle.replay()}).then(started);
+});
+$('exitBtn').addEventListener('click',()=>{
+ if(!ready||actionPending||!window.SideviewPWA.canAct()||!battle.canAbandon)return;if(leaveAsk!=='exit'){askLeave('exit');return}
+ countRun();if(battle.abandon()&&(window.SideviewStats?.observe(battle,meta.cleared),battle.prepareReplay())){applySaved(saves.read());renderedState='';sync();toast('ออกจากด่านแล้ว · ของที่สะสมไว้ยังอยู่ครบ');$('actionBtn').focus()}
+});
 $('prepareBtn').addEventListener('click',()=>{if(!ready||actionPending||!window.SideviewPWA.canAct())return;if(battle.prepareReplay()){applySaved(saves.read());renderedState='';sync();$('rosterPicker').querySelector('button').focus()}});
 document.addEventListener('keydown',event=>{
  if(event.repeat||event.ctrlKey||event.altKey||event.metaKey||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
@@ -175,13 +196,13 @@ let countedRun=0;
 function modal(){
  const state=battle.state,claimed=battle.claimed;
  if(renderedState===state&&lastRun===battle.runId&&lastClaim===claimed)return;
- if(['won','lost'].includes(state)&&countedRun!==battle.runId){countedRun=battle.runId;if(battle.metrics.summons)window.SideviewDaily.bump('summons',battle.metrics.summons);
-  if(state==='lost'&&battle.metrics.summons)window.SideviewWallet?.record({kind:'loss',stage:battle.stageIndex,summons:battle.metrics.summons})}
+ if(['won','lost'].includes(state))countRun();
  window.SideviewDaily.refresh();window.SideviewLobby.refresh();
  renderedState=state;lastRun=battle.runId;lastClaim=claimed;
  $('overlay').hidden=['running','advancing'].includes(state);$('modal').classList.toggle('won',state==='won');$('rewardArea').hidden=state!=='won';$('replayBtn').hidden=!(state==='won'&&claimed);$('actionBtn').hidden=state==='won'&&claimed;
  $('preflightControls').hidden=state!=='ready';
  $('prepareBtn').hidden=!(state==='lost'||state==='won'&&claimed);
+ leaveAsk=null;$('retryBtn').hidden=$('exitBtn').hidden=!(state==='paused'&&battle.canAbandon);$('retryBtn').textContent=`เริ่มด่านนี้ใหม่ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;$('exitBtn').textContent='ออกจากด่าน · กลับหน้าหลัก';
  if(state==='ready'){$('modalKicker').textContent=`ด่าน ${String(battle.stage.number).padStart(2,'0')} · ${battle.stage.name}`;$('modalTitle').textContent='พาเพื่อนกลับบ้าน';$('modalCopy').innerHTML='กางรถเป็นฐาน ส่งทีมไปช่วยเพื่อนที่ฐาน Mushroom<br>ชนะแล้วพับกลับเป็นรถ ไปรับเพื่อนกลับบ้าน';$('modalNote').textContent='เลือกทีมและโหมดได้ก่อนเริ่ม · ยังไม่เสียคุกกี้ดาว';$('actionBtn').textContent=`เริ่มภารกิจ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;return}
  if(state==='running'||state==='advancing')$('pauseBtn').focus();
  if(state==='advancing')toast('ชนะแล้ว! รถฐานกำลังไปรับเพื่อน');
@@ -194,13 +215,13 @@ function modal(){
    $('actionBtn').textContent='รับรางวัลและพาเพื่อนเข้าทีม →';if(!first&&!claimed)$('actionBtn').textContent='รับรางวัลรอบนี้ →';
    $('modalNote').textContent=`เหรียญสะสม: ${battle.progress.coins} · ${saves.writable?'บันทึกความคืบหน้าในเบราว์เซอร์นี้':'ความคืบหน้าอยู่เฉพาะหน้าที่เปิด'}`;
  }else if(state==='lost'){
-   $('modalKicker').textContent='ยังมีครั้งต่อไป';$('modalTitle').textContent='ตั้งทีมแล้วลองอีกครั้ง';$('modalCopy').innerHTML=(battle.homeHP<=0?'รถฐานทีมเราถูกทำลาย':'หมดเวลาภารกิจ')+'<br>ลองเรียกเพื่อนให้เร็วขึ้น หรือเลือก Auto';$('actionBtn').textContent=`เล่นใหม่ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;$('modalNote').textContent='รอบนี้ไม่ได้รับรางวัล · ค่าทั้งหมดเป็นตัวอย่าง';
+   $('modalKicker').textContent='ยังมีครั้งต่อไป';$('modalTitle').textContent='ตั้งทีมแล้วลองอีกครั้ง';$('modalCopy').innerHTML=(battle.reason==='exit'?'ออกจากด่านกลางทาง':battle.homeHP<=0?'รถฐานทีมเราถูกทำลาย':'หมดเวลาภารกิจ')+'<br>ลองเรียกเพื่อนให้เร็วขึ้น หรือเลือก Auto';$('actionBtn').textContent=`เล่นใหม่ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;$('modalNote').textContent='รอบนี้ไม่ได้รับรางวัล · ค่าทั้งหมดเป็นตัวอย่าง';
  }
  if(state==='won'||state==='lost')(claimed?$('replayBtn'):$('actionBtn')).focus();
 }
 function sync(){
  window.SideviewStats?.observe(battle,meta.cleared);
- const pwaBlocked=!ready||actionPending||!window.SideviewPWA.canAct();$('actionBtn').disabled=pwaBlocked;$('replayBtn').disabled=pwaBlocked;$('prepareBtn').disabled=pwaBlocked;$('refillBtn').disabled=pwaBlocked;
+ const pwaBlocked=!ready||actionPending||!window.SideviewPWA.canAct();$('actionBtn').disabled=pwaBlocked;$('replayBtn').disabled=pwaBlocked;$('prepareBtn').disabled=pwaBlocked;$('retryBtn').disabled=pwaBlocked;$('exitBtn').disabled=pwaBlocked;$('refillBtn').disabled=pwaBlocked;
  document.querySelectorAll('.roster-choice').forEach((el,i)=>{el.disabled=!ready||actionPending||battle.state!=='ready';el.setAttribute('aria-pressed',String(battle.selectedRoster.includes(i)))});
  $('homeText').textContent=`${Math.ceil(battle.homeHP)} / ${CONFIG.homeHP}`;$('enemyText').textContent=`${Math.ceil(battle.enemyHP)} / ${battle.enemyMaxHP}`;
  $('homeFill').style.width=`${Math.max(0,battle.homeHP/CONFIG.homeHP*100)}%`;$('enemyFill').style.width=`${Math.max(0,battle.enemyHP/battle.enemyMaxHP*100)}%`;
