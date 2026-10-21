@@ -8,6 +8,7 @@ import {json, fail, readBody, sha256} from '../../_lib/http.js';
 import {getWallet, publicView} from '../../_lib/wallet.js';
 import {UNIT_IDS, BASE_HEROES} from '../../_lib/economy.js';
 import {sameOrigin, setupLive, maintenance, LIMITS} from '../../_lib/live.js';
+import {chainEnv, setupChain, overview as chainOverview, deploy as chainDeploy} from '../../_lib/chain.js';
 
 const PLAYER_ID = /^LR-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/;
 const DAY = 864e5;
@@ -192,6 +193,24 @@ async function route(request, env, path) {
       ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).bind(JSON.stringify(value), now).run();
     await log(db, request, 'maintenance', null, value);
     return json(await maintenance(db));
+  }
+
+  // 1.18 testnet token + hero NFT (functions/_lib/chain.js). TESTNET ONLY.
+  if (path === 'chain' && method === 'GET') {
+    const cfg = chainEnv(env);
+    if (!cfg.on) return json({on: false, reason: cfg.reason});
+    await setupChain(db);
+    return json({on: true, ...(await chainOverview(db, cfg))});
+  }
+  if (path === 'chain/deploy' && method === 'POST') {
+    const cfg = chainEnv(env);
+    if (!cfg.on) return fail(503, cfg.reason);
+    const body = await readBody(request, 1024);
+    if (body.confirm !== 'testnet') return fail(400, 'confirm');
+    await setupChain(db);
+    const result = await chainDeploy(db, cfg, new URL(request.url).origin + '/nft/', now);
+    await log(db, request, 'chain-deploy', null, result);
+    return json(result, 201);
   }
 
   if (path === 'log' && method === 'GET') {

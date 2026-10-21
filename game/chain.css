@@ -1,0 +1,37 @@
+/* 1.18 testnet token + hero NFT (chain.js): a strip at the top of the hero book and one dialog. Testnet look:
+   a dashed violet edge and the TESTNET badge, so it never reads as a real-money feature. */
+.chain-strip{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;border:2px dashed #9b86cf;background:#f4f0ff;color:#3f3366}
+.chain-strip>span{font-size:1.4rem}
+.chain-strip div{flex:1;display:flex;flex-direction:column;min-width:0}
+.chain-strip b{font-size:13px}
+.chain-strip small{font-size:10.5px;font-weight:700;letter-spacing:.5px;color:#6a58a8}
+.chain-strip button{background:#7b65c4;color:#fff;border:0;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:700}
+.chain-dialog{border-color:#9b86cf;max-height:88vh;overflow:auto}
+.chain-dialog h2{color:#4d3d8a}
+.chain-dialog h3{margin:12px 0 4px;font-size:13px;color:#4d3d8a}
+.chain-dialog .chain-badge{display:inline-block;margin:0 0 4px;padding:1px 10px;border-radius:999px;background:#7b65c4;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.5px}
+.chain-dialog .chain-note{font-size:11px;background:#f4f0ff;border-radius:10px;padding:6px 10px}
+.chain-dialog .chain-hint{font-size:10.5px;color:#6b604c}
+.chain-dialog .chain-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.chain-dialog .chain-row button.primary{width:auto}
+.chain-dialog code{font:700 12px ui-monospace,Menlo,Consolas,monospace}
+.chain-paste{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px;margin-top:8px}
+.chain-paste label{flex:1 1 220px;display:flex;flex-direction:column;font-size:11px;gap:3px}
+.chain-paste input{font:13px ui-monospace,Menlo,Consolas,monospace;padding:7px 8px;border:1px solid #c9b48c;border-radius:8px;background:#fffdf6}
+.chain-heroes{list-style:none;margin:6px 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+.chain-heroes li{display:grid;grid-template-columns:36px 1fr auto;grid-template-rows:auto auto;column-gap:8px;align-items:center;padding:6px 8px;border-radius:10px;background:#f3ead4}
+.chain-heroes img{grid-row:1/3;width:36px;height:36px;object-fit:contain}
+.chain-heroes b{font-size:12px}
+.chain-heroes small{grid-column:2;font-size:10px;color:#b07a12}
+.chain-heroes button,.chain-heroes .chain-status,.chain-heroes a{grid-column:3;grid-row:1/3}
+.chain-heroes button.primary{width:auto;padding:5px 9px;font-size:11px}
+.chain-heroes li:has(a) .chain-status{grid-row:1}
+.chain-heroes li:has(a) a{grid-row:2;font-size:10px}
+.chain-status{font-size:10.5px;font-weight:700;color:#6b604c}
+.chain-status.done{color:#3f8f5a}.chain-status.sent,.chain-status.pending{color:#7b65c4}.chain-status.failed{color:#c2463b}
+.chain-extra{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chain-msg{min-height:1.6em;font-weight:700;color:#5f4fa0}
+/* Phone landscape starts the book right at the top of the card, under the ☁️ chip. */
+@media (max-width: 1000px) and (max-height: 520px) and (orientation: landscape) {
+  .chain-strip { margin-right: 120px; }
+}

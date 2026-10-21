@@ -1,0 +1,20 @@
+{
+  "name": "พู่กัน (ทดลอง testnet)",
+  "description": "ฮีโร่จาก Little Rescue · NFT ทดลองบน Base Sepolia ไม่มีมูลค่าจริง เป็นเจ้าของได้แต่ไม่ได้เก่งกว่าฮีโร่ในเกม ลิขสิทธิ์ตัวละครยังเป็นของผู้สร้างเกม · นกยูงนักธนู ยิงขนแสงดาวได้ไกลกว่าใคร",
+  "image": "https://little-rescue.pages.dev/assets/heroes-v3/hero-ranged-peacock.webp",
+  "external_url": "https://little-rescue.pages.dev/",
+  "attributes": [
+    {
+      "trait_type": "ธาตุ",
+      "value": "แสงดาว"
+    },
+    {
+      "trait_type": "บทบาท",
+      "value": "ยิงไกล"
+    },
+    {
+      "trait_type": "เครือข่าย",
+      "value": "testnet"
+    }
+  ]
+}

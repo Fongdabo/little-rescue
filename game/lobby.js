@@ -38,7 +38,8 @@
  function renderBook(){
   if(!book||tab!=='book')return;
   const {battle,UNITS,levelMultiplier,starMultiplier,assetURL,heroes}=app;
-  book.innerHTML=UNITS.map((u,i)=>{const lv=battle.levels[i],star=battle.stars[i],p=levelMultiplier(lv)*starMultiplier(star);
+  // 1.18: the testnet strip (chain.js) sits above the cards; empty while the testnet is off.
+  book.innerHTML=(window.SideviewChain?.bookStrip()||'')+UNITS.map((u,i)=>{const lv=battle.levels[i],star=battle.stars[i],p=levelMultiplier(lv)*starMultiplier(star);
    if(!heroes.owned(u.id))return `<div class="book-card locked type-${u.type}"><img src="${assetURL(u.asset)}" alt=""><b>${u.name}</b>
     <small>${u.role} · ${typeName[u.type]||''}</small><span class="book-lv">🔒</span><p class="book-story">${u.story||''}</p>
     <button type="button" class="book-unlock" data-unlock="${i}" ${battle.state!=='ready'||!app.canEdit()||battle.progress.coins<u.unlockCoins?'disabled':''}>ชวนมาเป็นเพื่อน ◉ ${u.unlockCoins}</button></div>`;

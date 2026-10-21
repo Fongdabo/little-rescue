@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 
 const GAME = new URL('../game/', import.meta.url).pathname;
 const read = f => readFileSync(join(GAME, f), 'utf8');
@@ -54,6 +55,21 @@ if (existsSync(join(LIB, 'economy.js'))) {
     const lcg = seed => () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
     same(`rollSummon(${count},${since})`, eco.rollSummon(lcg(a), count, since), game.rollSummon(lcg(b), count, since));
   }
+}
+
+// 1d. testnet token + NFT (1.18): the bytecode the admin deploy button sends matches the .sol files, the NFT
+// metadata matches the heroes. (CI's contracts job compiles and tests the contracts themselves.)
+{
+  const contracts = new URL('../contracts/contracts/', import.meta.url).pathname;
+  const generated = existsSync(join(LIB, 'chain-contracts.js')) ? await import(join(LIB, 'chain-contracts.js')) : null;
+  if (!generated) fail('functions/_lib/chain-contracts.js is missing (npm run build in contracts/)');
+  else for (const c of [generated.TOKEN, generated.HEROES]) {
+    const hash = createHash('sha256').update(readFileSync(join(contracts, c.name + '.sol'))).digest('hex').slice(0, 16);
+    if (hash !== c.sources) fail(`contracts/${c.name}.sol changed but chain-contracts.js was not rebuilt (npm run build in contracts/)`);
+    if (!/^0x[0-9a-f]+$/.test(c.bytecode)) fail(`chain-contracts.js ${c.name} has no bytecode`);
+  }
+  const {problems} = await import(new URL('./nft-metadata.mjs', import.meta.url).pathname);
+  for (const p of problems()) fail(p);
 }
 
 // 2. one build id everywhere: service worker, page, every recovery page

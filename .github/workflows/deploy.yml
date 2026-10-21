@@ -30,8 +30,25 @@ jobs:
           path: Little-Rescue-Cloudflare-Upload.zip
           retention-days: 30
 
+  # 1.18 testnet token + hero NFT: compile, check the bytecode the server sends, run the contract and server tests.
+  contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+
   deploy:
-    needs: check
+    needs: [check, contracts]
     runs-on: ubuntu-latest
     # forks never get the Cloudflare secrets
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository

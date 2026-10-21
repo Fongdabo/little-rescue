@@ -43,6 +43,12 @@ The owner writes Thai; reply in Thai.
 - Weekly event (1.17): `WEEKLY` + `weekOf`/`weeklyEvent` in engine.js and economy.js (check.mjs compares them); local
   counters in `little-rescue-weekly-v1` (weekly.js, written inside savedAction); server ops `event` / `event-chest` in play.js
   (week progress in the wallet's `days.week`). `battle.setEventStage(spec)` plays it without touching `stageIndex`/`cleared`.
+- Testnet token + hero NFT (1.18), TESTNET ONLY (Base Sepolia 84532): contracts in `contracts/` (hardhat, solc 0.8.28 from npm;
+  `npm run build` regenerates `functions/_lib/chain-contracts.js`, CI's contracts job checks it and runs the contract + server
+  tests). Server `functions/_lib/chain.js` (+ `evm.js`, vendored @noble crypto) and `functions/api/chain/[[path]].js`; admin
+  `chain` / `chain/deploy`. Off unless `CHAIN_TESTNET=1` + secret `CHAIN_MINTER_KEY`; every send checks eth_chainId first.
+  Claims (`chain_claims`, one per player/kind/item) carry an on-chain ref the contracts accept once. Client `chain.js`
+  writes no localStorage; coins/gems never become tokens. NFT metadata `game/nft/*.json` = `node tools/nft-metadata.mjs`.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).
