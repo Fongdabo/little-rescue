@@ -18,6 +18,11 @@ The owner writes Thai; reply in Thai.
   stays hidden). `cloud-save.js` uploads `{transfer, meta, daily}` with compare-and-swap `rev`; account in
   `little-rescue-cloud-v1`. Restores go through `SideviewBridge.importCloud` (only when import is safe). Local save stays primary.
   Test locally: `wrangler pages dev game --d1 SAVES_DB=local` from the repo root.
+- Server wallet (1.13): for cloud accounts the server owns coins/levels/stars/shards/cleared (`functions/_lib/wallet.js`,
+  `play.js`, numbers in `economy.js`, checked against the game by check.mjs). `wallet.js` queues actions in
+  `little-rescue-wallet-v1` and adopts the server's numbers via `SideviewBridge.applyWallet` when the queue is empty.
+  Any new way to earn or spend coins must also `SideviewWallet.record(...)` it and get a matching op in play.js.
+  API: `docs/server-wallet.md`.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).

@@ -75,6 +75,7 @@
    else{const m=MISSIONS.find(x=>x.id===id);if(!m||!missionReady(state,m))return false;reward={coins:m.coins};state.claimed.push(id)}
    // Mark first: if the save write fails afterwards the reward is lost, never paid twice.
    if(!write(state))return false;
+   window.SideviewWallet?.record({kind:'daily',mission:id,day:state.day});
    app.pay(reward.coins,reward.cookies||0);return true;
   });
   if(ok&&reward)app.toast(`รับ ${reward.coins} เหรียญ${reward.cookies?` และคุกกี้ดาว ${reward.cookies} ชิ้น`:''} แล้ว!`);

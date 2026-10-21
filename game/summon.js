@@ -34,8 +34,8 @@
  // Uniform [0,1) from the platform's secure generator.
  function random(){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]/4294967296}
 
- let app=null,panel=null,last=[];
- const open=()=>Boolean(app?.canAct());
+ let app=null,panel=null,last=[],busy=false;
+ const open=()=>Boolean(app?.canAct())&&!busy;
  function render(){
   if(!panel)return;
   const s=read(),coins=app.coins(),free=s.freeDay!==today(),can=open();
@@ -66,6 +66,18 @@
  async function pull(kind){
   if(!open())return;
   const n=kind==='10'?10:1,price=kind==='free'?0:kind==='10'?SUMMON.tenCost:SUMMON.cost;let got=null;
+  // 1.13: with a cloud account the server rolls the summon and charges it (wallet.js); the local roll is for guests.
+  if(window.SideviewWallet?.active()){
+   if(kind==='free'&&read().freeDay===today())return;
+   if(kind!=='free'&&app.coins()<price){app.toast('เหรียญยังไม่พอ ชนะด่านหรือทำภารกิจเพื่อรับเหรียญ');return}
+   busy=true;render();let answer;
+   try{answer=await window.SideviewWallet.summon(kind)}finally{busy=false}
+   if(answer){
+    if(answer.results){last=answer.results;await window.SideviewWallet.reconcile();shown(answer.results)}
+    else app.toast(answer.error==='offline'?'ต่ออินเทอร์เน็ตก่อนสุ่ม (บัญชีนี้สุ่มบนเซิร์ฟเวอร์)':answer.error==='insufficient'?'เหรียญบนเซิร์ฟเวอร์ยังไม่พอ':answer.error==='used'?'ใช้สุ่มฟรีวันนี้แล้ว':'สุ่มไม่สำเร็จ ลองใหม่อีกครั้ง');
+    render();return;
+   }
+  }
   const ok=await app.savedAction(()=>{
    const s=read();
    if(kind==='free'&&s.freeDay===today())return false;
@@ -77,9 +89,19 @@
    if(!write(s))return false;
    if(price)app.spend(price);got=roll.results;return true;
   });
-  if(ok&&got){last=got;for(const r of got)window.SideviewHeroes?.grant?.(UNITS[r.unit].id);const best=got.some(r=>r.tier==='legend')?'legend':got.some(r=>r.tier==='rare')?'rare':'common';
-   app.toast(best==='legend'?'✨ ได้ระดับตำนาน!':best==='rare'?'ได้ระดับหายาก!':'ได้ชิ้นส่วนเพื่อนแล้ว');app.changed()}
+  if(ok&&got){last=got;shown(got)}
   render();
+ }
+ function shown(got){
+  for(const r of got)window.SideviewHeroes?.grant?.(UNITS[r.unit].id);const best=got.some(r=>r.tier==='legend')?'legend':got.some(r=>r.tier==='rare')?'rare':'common';
+  app.toast(best==='legend'?'✨ ได้ระดับตำนาน!':best==='rare'?'ได้ระดับหายาก!':'ได้ชิ้นส่วนเพื่อนแล้ว');app.changed();
+ }
+ // 1.13: the server wallet's stars and shards replace the local ones (called inside the save lock).
+ function adopt(view){
+  const s=read();
+  for(const u of UNITS){const h=view?.units?.[u.id];if(!h||!Number.isInteger(h.star)||!Number.isInteger(h.shards))return false;s.units[u.id]={star:Math.max(1,Math.min(STARS.max,h.star)),shards:count(h.shards,99999)}}
+  s.sinceLegend=count(view.sinceLegend,SUMMON.pity-1);s.pulls=count(view.pulls,1e9);s.freeDay=typeof view.freeDay==='string'?view.freeDay:'';
+  return write(s);
  }
  async function starUp(index){
   if(!open())return;
@@ -90,6 +112,7 @@
    if(app.coins()<next.coins){app.toast('เหรียญยังไม่พอ');return false}
    h.shards-=next.shards;h.star+=1;reached=h.star;
    if(!write(s))return false;
+   window.SideviewWallet?.record({kind:'star',unit:u.id,star:reached-1});
    app.spend(next.coins);return true;
   });
   if(ok){app.toast(`${u.name} ${reached} ดาวแล้ว!`);app.changed()}
@@ -108,5 +131,5 @@
   setInterval(()=>{if(panel.offsetParent)render()},30000);
   render();
  }
- window.SideviewSummon={KEY,read,stars,star,nextCost,mount,render,pull,starUp};
+ window.SideviewSummon={KEY,read,stars,star,nextCost,mount,render,pull,starUp,adopt};
 })();
