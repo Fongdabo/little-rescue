@@ -17,10 +17,11 @@ for (const f of readdirSync(GAME).filter(f => f.endsWith('.js'))) {
 }
 
 // 1b. Cloudflare Pages Functions (cloud save, statistics, shop; subfolders too) parse too
-const FUNCTIONS = new URL('../functions/api/', import.meta.url).pathname;
+// every .js under functions/, including _lib/ (1.15)
+const FUNCTIONS = new URL('../functions/', import.meta.url).pathname;
 for (const f of existsSync(FUNCTIONS) ? readdirSync(FUNCTIONS, {recursive: true}).filter(f => f.endsWith('.js')) : []) {
   try { execFileSync(process.execPath, ['--check', join(FUNCTIONS, f)], { stdio: 'pipe' }); }
-  catch (e) { fail(`functions/api/${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
+  catch (e) { fail(`functions/${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
 
 // 1c. the server wallet (functions/_lib) uses the same numbers as the game
