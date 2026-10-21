@@ -1,7 +1,7 @@
 /* Local prototype UI. Rendering uses copied, replaceable assets. No network APIs. */
 'use strict';
 (() => {
-const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,CHAPTERS,LEVELS,ITEMS,levelCost,levelMultiplier,starMultiplier,EnergyBank,Battle}=window.Sideview;
+const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,CHAPTERS,WEEKLY,weeklyEvent,LEVELS,ITEMS,levelCost,levelMultiplier,starMultiplier,EnergyBank,Battle}=window.Sideview;
 const $=id=>document.getElementById(id);
 const storageKey='little-rescue-sideview-save-v2';
 let storage=null;try{storage=window.localStorage}catch{}
@@ -140,7 +140,12 @@ $('actionBtn').addEventListener('click',()=>{
  if(!ready)return;
  if(battle.state==='paused'){battle.pause();sync();return}
  savedAction(()=>{
-   if(battle.state==='ready'){const ok=battle.start();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
+   if(battle.state==='ready'){if(battle.stage.event&&battle.stage!==weeklyEvent(Date.now()))battle.setEventStage(weeklyEvent(Date.now()));const ok=battle.start();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
+   if(battle.state==='won'&&battle.stage.event){
+    // 1.17 weekly event: pays only for the first WEEKLY.paidPerDay wins of the day; every win counts for the chest.
+    const weekly=window.SideviewWeekly,reward=battle.claimReward(weekly.payFor(battle.stage));if(!reward)return false;weekly.addWin();
+    toast(reward.coins?`รับ ${reward.coins} เหรียญจากอีเวนต์แล้ว`:'วันนี้รับรางวัลอีเวนต์ครบแล้ว · ชนะนี้ยังนับเข้าหีบสัปดาห์');
+    window.SideviewWallet?.record({kind:'event',event:reward.event,run:window.SideviewWallet.runFor(battle.runId),battle:Math.round(battle.time*10)/10,summons:battle.metrics.summons});return true}
    if(battle.state==='won'){const reward=battle.claimReward();if(!reward)return false;
     // 1.16 event coin bonus (live.js): added in the same save write as the reward; the server wallet adds the same
     // bonus to the win op (functions/_lib/play.js) so the next wallet sync agrees.
@@ -152,7 +157,7 @@ $('actionBtn').addEventListener('click',()=>{
  }).then(started).then(markCleared);
 });
 // 1.13 server wallet (wallet.js): a signed-in player's battle gets a run ticket so the server can time it.
-function started(ok){if(ok&&battle.state==='running')window.SideviewWallet?.startRun(battle.runId,battle.stageIndex);return ok}
+function started(ok){if(ok&&battle.state==='running')window.SideviewWallet?.startRun(battle.runId,battle.stageIndex,battle.stage.event?battle.stage.id:null);return ok}
 $('replayBtn').addEventListener('click',()=>savedAction(()=>{const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}).then(started));
 // 1.12.2: the pause menu can leave the fight (a loss with no reward) or restart it; each asks once before acting.
 let leaveAsk=null;
@@ -186,7 +191,16 @@ document.addEventListener('keydown',event=>{
  for(const [id,key] of Object.entries(itemKeys))if(event.key.toUpperCase()===key){event.preventDefault();useItem(id)}
 });
 document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden&&['running','advancing'].includes(battle.state)){battle.pause();sync()}});
-function stageHeading(){const st=battle.stage;document.querySelector('.level-number').textContent=String(st.number).padStart(2,'0');document.querySelector('.level-heading h2').textContent=st.name;document.title=`${st.name} • ภารกิจช่วยเพื่อน`;$('battlefield').dataset.grade=st.grade}
+function stageHeading(){const st=battle.stage;document.querySelector('.level-number').textContent=st.event?st.icon:String(st.number).padStart(2,'0');document.querySelector('.level-heading h2').textContent=st.name;document.title=`${st.name} • ภารกิจช่วยเพื่อน`;$('battlefield').dataset.grade=st.grade}
+function chooseEvent(){
+ const spec=weeklyEvent(Date.now());if(meta.cleared<WEEKLY.unlock||!battle.setEventStage(spec))return;
+ stageHeading();levelKey='';renderedState='';sync();
+}
+async function claimChest(){
+ const weekly=window.SideviewWeekly,week=weekly.current().week;
+ const ok=await savedAction(()=>{if(battle.state!=='ready'||!weekly.claimChest())return false;battle.progress.coins+=WEEKLY.chestCoins;window.SideviewWallet?.record({kind:'event-chest',week});return true});
+ if(ok)toast(`🎁 เปิดหีบสัปดาห์ · รับ ${WEEKLY.chestCoins} เหรียญแล้ว!`);levelKey='';sync();
+}
 function chooseStage(index){if(index>meta.cleared||!battle.setStage(index))return;meta=readMeta();meta.stage=index;writeMeta();mapChapter=0;stageHeading();levelKey='';renderedState='';sync()}
 // 1.17 world map: chapter tabs and one painted strip per chapter, stages along a winding road.
 const MAP_SPOTS=[[10,64],[30,36],[50,62],[70,34],[90,58]];
@@ -196,14 +210,31 @@ const MAP_ART={
 };
 let mapChapter=0;
 function chapterOpen(n){const first=STAGES.findIndex(s=>s.chapter===n);return first>=0&&first<=meta.cleared}
+function eventPanel(wk,editable){
+ const ev=wk.event,on=battle.stage===ev,panel=document.createElement('div');panel.className='map-strip event-strip grade-'+ev.grade;
+ panel.innerHTML=`<div class="event-card"><span class="event-icon" aria-hidden="true">${ev.icon}</span><div><b>${ev.name}</b><small>${ev.text}</small>
+  <small>⏳ เปลี่ยนด่านในอีก ${window.SideviewWeekly.timeLeft()} · ◉ ${ev.rewardCoins} ต่อครั้ง · วันนี้เหลือ ${wk.paidLeft}/${WEEKLY.paidPerDay}</small></div>
+  <button type="button" class="event-play" data-event-play ${editable&&!on?'':'disabled'} aria-pressed="${on}">${on?'✓ เลือกแล้ว':'เล่นอีเวนต์'}</button></div>
+  <div class="event-chest"><span aria-hidden="true">${wk.chest?'📭':'🎁'}</span><small>หีบสัปดาห์ · ชนะ ${Math.min(wk.wins,WEEKLY.chestWins)}/${WEEKLY.chestWins}</small>
+  <div class="chest-bar" role="progressbar" aria-label="ชนะอีเวนต์สัปดาห์นี้" aria-valuemin="0" aria-valuemax="${WEEKLY.chestWins}" aria-valuenow="${Math.min(wk.wins,WEEKLY.chestWins)}"><i style="width:${Math.min(100,wk.wins/WEEKLY.chestWins*100)}%"></i></div><button type="button" class="event-open" data-event-chest ${editable&&wk.chestReady?'':'disabled'}>${wk.chest?'เปิดแล้ว':`เปิดหีบ ◉ ${WEEKLY.chestCoins}`}</button></div>`;
+ panel.querySelector('[data-event-play]').addEventListener('click',chooseEvent);
+ panel.querySelector('[data-event-chest]').addEventListener('click',claimChest);
+ return panel;
+}
 function renderStages(){
  const box=$('stagePicker');box.innerHTML='';box.classList.add('world-map');
- const chapter=mapChapter||battle.stage.chapter,editable=ready&&!actionPending&&battle.state==='ready';
+ const chapter=mapChapter||(battle.stage.event?'event':battle.stage.chapter),editable=ready&&!actionPending&&battle.state==='ready';
  const tabs=document.createElement('div');tabs.className='chapter-tabs';tabs.setAttribute('role','group');tabs.setAttribute('aria-label','เลือกบท');
  for(const ch of CHAPTERS){const list=STAGES.filter(s=>s.chapter===ch.number),done=list.filter(s=>STAGES.indexOf(s)<meta.cleared).length,open=chapterOpen(ch.number),t=document.createElement('button');
   t.type='button';t.className='chapter-tab';t.setAttribute('aria-pressed',String(ch.number===chapter));
   t.innerHTML=`<span aria-hidden="true">${open?ch.icon:'🔒'}</span><b>บทที่ ${ch.number} · ${ch.name}</b><small>${open?`ผ่าน ${done}/${list.length}`:`ผ่านด่าน ${String(STAGES.findIndex(s=>s.chapter===ch.number)).padStart(2,'0')} ก่อน`}</small>`;
   t.title=ch.text;t.addEventListener('click',()=>{if(!open){toast(`🔒 ${ch.name} · ผ่านบทก่อนหน้าให้ครบก่อน`);return}mapChapter=ch.number;levelKey='';sync()});tabs.append(t)}
+ // 1.17 weekly event tab (weekly.js)
+ const wk=window.SideviewWeekly.current(),evOpen=meta.cleared>=WEEKLY.unlock,et=document.createElement('button');
+ et.type='button';et.className='chapter-tab event-tab';et.setAttribute('aria-pressed',String(chapter==='event'));
+ et.innerHTML=`<span aria-hidden="true">${evOpen?'🎪':'🔒'}</span><b>อีเวนต์สัปดาห์</b><small>${evOpen?(wk.chestReady?'🎁 หีบพร้อมเปิด':`${wk.event.icon} ${wk.event.name}`):`ผ่านด่าน ${String(WEEKLY.unlock).padStart(2,'0')} ก่อน`}</small>${evOpen&&wk.chestReady?'<i class="daily-badge" aria-hidden="true">1</i>':''}`;
+ et.addEventListener('click',()=>{if(!evOpen){toast(`🔒 อีเวนต์สัปดาห์ · ผ่านด่าน ${String(WEEKLY.unlock).padStart(2,'0')} ก่อน`);return}mapChapter='event';levelKey='';sync()});tabs.append(et);
+ if(chapter==='event'){box.append(tabs,eventPanel(wk,editable));return}
  const strip=document.createElement('div');strip.className='map-strip chapter-'+chapter;
  const idx=STAGES.map((s,i)=>i).filter(i=>STAGES[i].chapter===chapter),pts=idx.map((_,k)=>MAP_SPOTS[k%MAP_SPOTS.length]);
  const road=pts.map((p,k)=>k?`Q${(pts[k-1][0]+p[0])/2} ${k%2?p[1]-14:p[1]+14} ${p[0]} ${p[1]}`:`M${p[0]} ${p[1]}`).join(' ');
@@ -211,8 +242,8 @@ function renderStages(){
  idx.forEach((i,k)=>{const st=STAGES[i],locked=i>meta.cleared,b=document.createElement('button');b.type='button';
   b.className='stage-node map-node grade-'+st.grade+(st.boss?' boss':'')+(locked?' locked':'');b.dataset.stage=String(i);
   b.style.left=pts[k][0]+'%';b.style.top=pts[k][1]+'%';
-  b.disabled=locked||!editable;b.setAttribute('aria-pressed',String(i===battle.stageIndex));
-  b.innerHTML=`<b>${locked?'🔒':String(st.number).padStart(2,'0')}</b><span>${locked?'ยังล็อก':st.name}</span>${i<meta.cleared?'<i aria-label="ผ่านแล้ว">✓</i>':''}${st.boss?`<em aria-label="ด่านบอส">👑</em>`:''}${i===battle.stageIndex?'<u aria-hidden="true">🚐</u>':''}`;
+  const here=i===battle.stageIndex&&!battle.stage.event;b.disabled=locked||!editable;b.setAttribute('aria-pressed',String(here));
+  b.innerHTML=`<b>${locked?'🔒':String(st.number).padStart(2,'0')}</b><span>${locked?'ยังล็อก':st.name}</span>${i<meta.cleared?'<i aria-label="ผ่านแล้ว">✓</i>':''}${st.boss?`<em aria-label="ด่านบอส">👑</em>`:''}${here?'<u aria-hidden="true">🚐</u>':''}`;
   b.title=locked?'ชนะด่านก่อนหน้าเพื่อปลดล็อก':`${st.name} · ฐานศัตรู ${st.enemyHP} · ไม่จำกัดเวลา · รางวัล ${st.rewardCoins} เหรียญ${st.boss?` · บอส ${st.boss.name}`:''}`;
   b.setAttribute('aria-label',locked?`ด่าน ${st.number} ยังล็อก`:`ด่าน ${st.number} ${st.name}${st.boss?' ด่านบอส':''}${i<meta.cleared?' ผ่านแล้ว':''}`);
   b.addEventListener('click',()=>chooseStage(i));strip.append(b)});
@@ -244,12 +275,13 @@ let countedWin=0;
 function markCleared(){
  if(battle.state!=='won'||!battle.claimed)return;
  if(countedWin!==battle.runId){countedWin=battle.runId;window.SideviewDaily.bump('wins')}
+ if(battle.stage.event){levelKey='';return}
  meta=readMeta();const next=battle.stageIndex+1;
  if(next>meta.cleared){meta.cleared=Math.min(STAGES.length,next);writeMeta();if(next<STAGES.length){const ch=STAGES[next].chapter!==battle.stage.chapter&&CHAPTERS.find(c=>c.number===STAGES[next].chapter);toast(ch?`${ch.icon} ปลดล็อกบทที่ ${ch.number} · ${ch.name} แล้ว! ไปต่อที่แผนที่โลก`:`ปลดล็อกด่าน ${String(next+1).padStart(2,'0')} · ${STAGES[next].name} แล้ว!`)}}
  levelKey='';
 }
 function refreshMeta(){
- const key=[ready,actionPending,battle.state,battle.progress.coins,battle.stars.join(','),battle.levels.join(','),battle.stageIndex,meta.cleared].join('|');
+ const key=[ready,actionPending,battle.state,battle.progress.coins,battle.stars.join(','),battle.levels.join(','),battle.stageIndex,battle.stage.id,meta.cleared,JSON.stringify(window.SideviewWeekly.current())].join('|');
  if(key===levelKey)return;levelKey=key;renderStages();renderLevels();$('coinText').textContent=battle.progress.coins.toLocaleString('th-TH');if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();window.SideviewLobby.renderBook();
 }
 window.addEventListener('storage',event=>{if(event.key!==metaKey&&event.key!==worldKey)return;meta=readMeta();if(battle.state==='ready'){battle.setLevels(allLevels());if(battle.stageIndex>meta.cleared)battle.setStage(meta.stage);stageHeading()}levelKey='';sync()});
@@ -264,7 +296,7 @@ function modal(){
  $('preflightControls').hidden=state!=='ready';
  $('prepareBtn').hidden=!(state==='lost'||state==='won'&&claimed);
  leaveAsk=null;$('retryBtn').hidden=$('exitBtn').hidden=!(state==='paused'&&battle.canAbandon);$('retryBtn').textContent=`เริ่มด่านนี้ใหม่ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;$('exitBtn').textContent='ออกจากด่าน · กลับหน้าหลัก';
- if(state==='ready'){$('modalKicker').textContent=`ด่าน ${String(battle.stage.number).padStart(2,'0')} · ${battle.stage.name}`;$('modalTitle').textContent='พาเพื่อนกลับบ้าน';$('modalCopy').innerHTML='กางรถเป็นฐาน ส่งทีมไปช่วยเพื่อนที่ฐาน Mushroom<br>ชนะแล้วพับกลับเป็นรถ ไปรับเพื่อนกลับบ้าน';$('modalNote').textContent='เลือกทีมและโหมดได้ก่อนเริ่ม · ยังไม่เสียคุกกี้ดาว';$('actionBtn').textContent=`เริ่มภารกิจ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;return}
+ if(state==='ready'){$('modalKicker').textContent=battle.stage.event?`${battle.stage.icon} อีเวนต์สัปดาห์นี้ · ${battle.stage.name}`:`ด่าน ${String(battle.stage.number).padStart(2,'0')} · ${battle.stage.name}`;$('modalTitle').textContent='พาเพื่อนกลับบ้าน';$('modalCopy').innerHTML='กางรถเป็นฐาน ส่งทีมไปช่วยเพื่อนที่ฐาน Mushroom<br>ชนะแล้วพับกลับเป็นรถ ไปรับเพื่อนกลับบ้าน';$('modalNote').textContent='เลือกทีมและโหมดได้ก่อนเริ่ม · ยังไม่เสียคุกกี้ดาว';$('actionBtn').textContent=`เริ่มภารกิจ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;return}
  if(state==='running'||state==='advancing')$('pauseBtn').focus();
  if(state==='advancing')toast('ชนะแล้ว! รถฐานกำลังไปรับเพื่อน');
  if(state==='paused'){
@@ -272,7 +304,8 @@ function modal(){
  }else if(state==='won'){
    $('modalKicker').textContent='ภารกิจสำเร็จ';$('modalTitle').textContent=claimed?'กลับบ้านด้วยกัน!':'ช่วยเพื่อนได้แล้ว!';$('modalCopy').textContent=claimed?'รางวัลรอบนี้รับเรียบร้อยแล้ว':'รางวัลสาธิต รับได้หนึ่งครั้งต่อรอบที่ชนะ';
    const first=!battle.progress.rescued;
-   $('rewardArea').innerHTML=`<div class="reward-item"><span class="reward-icon">◉</span><b>เหรียญ ${battle.stage.rewardCoins}${(window.SideviewLive?.bonusCoins(battle.stage.rewardCoins)||0)?` +${window.SideviewLive.bonusCoins(battle.stage.rewardCoins)}`:''}</b><small>${(window.SideviewLive?.coinBonus()||0)?`โบนัสกิจกรรม +${window.SideviewLive.coinBonus()}%`:'ไอเทมจำลอง'}</small></div><div class="reward-item"><span class="reward-icon cookie-icon">★</span><b>คุกกี้ดาว ${CONFIG.rewardCookies}</b><small>พลังงานเข้าด่าน</small></div><div class="reward-item"><img src="${assetURL(UNITS[3].asset)}" alt="เพื่อน${UNITS[3].name}"><b>${claimed?'อยู่ในทีมแล้ว':first?`เพื่อนที่ช่วยได้ · ${UNITS[3].name}`:'เพื่อนอยู่ในทีมแล้ว'}</b><small>${claimed?'รับรางวัลแล้ว':first?'เพิ่มในคอลเลกชันครั้งแรก':'เล่นซ้ำไม่เพิ่มเพื่อนซ้ำ'}</small></div>`;
+   const ev=battle.stage.event,evCoins=ev?(claimed?battle.reward?.coins??0:window.SideviewWeekly.payFor(battle.stage)):0;
+   $('rewardArea').innerHTML=(ev?`<div class="reward-item"><span class="reward-icon">◉</span><b>เหรียญ ${evCoins}</b><small>${evCoins?'รางวัลอีเวนต์':'วันนี้รับครบแล้ว'} · หีบสัปดาห์ ${Math.min(WEEKLY.chestWins,window.SideviewWeekly.current().wins+(claimed?0:1))}/${WEEKLY.chestWins}</small></div>`:`<div class="reward-item"><span class="reward-icon">◉</span><b>เหรียญ ${battle.stage.rewardCoins}${(window.SideviewLive?.bonusCoins(battle.stage.rewardCoins)||0)?` +${window.SideviewLive.bonusCoins(battle.stage.rewardCoins)}`:''}</b><small>${(window.SideviewLive?.coinBonus()||0)?`โบนัสกิจกรรม +${window.SideviewLive.coinBonus()}%`:'ไอเทมจำลอง'}</small></div>`)+`<div class="reward-item"><span class="reward-icon cookie-icon">★</span><b>คุกกี้ดาว ${CONFIG.rewardCookies}</b><small>พลังงานเข้าด่าน</small></div><div class="reward-item"><img src="${assetURL(UNITS[3].asset)}" alt="เพื่อน${UNITS[3].name}"><b>${claimed?'อยู่ในทีมแล้ว':first?`เพื่อนที่ช่วยได้ · ${UNITS[3].name}`:'เพื่อนอยู่ในทีมแล้ว'}</b><small>${claimed?'รับรางวัลแล้ว':first?'เพิ่มในคอลเลกชันครั้งแรก':'เล่นซ้ำไม่เพิ่มเพื่อนซ้ำ'}</small></div>`;
    $('actionBtn').textContent='รับรางวัลและพาเพื่อนเข้าทีม →';if(!first&&!claimed)$('actionBtn').textContent='รับรางวัลรอบนี้ →';
    $('modalNote').textContent=`เหรียญสะสม: ${battle.progress.coins} · ${saves.writable?'บันทึกความคืบหน้าในเบราว์เซอร์นี้':'ความคืบหน้าอยู่เฉพาะหน้าที่เปิด'}`;
  }else if(state==='lost'){

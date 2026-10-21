@@ -44,7 +44,7 @@
  let runId=0,ended=0,stage=-1,started=0;
  function observe(battle,cleared){
   if(state.off)return;
-  if(battle.runId!==runId&&battle.state==='running'){runId=battle.runId;stage=battle.stageIndex;started=Date.now();add('start',{stage,cleared})}
+  if(battle.runId!==runId&&battle.state==='running'){runId=battle.runId;stage=battle.stage?.event?40+window.Sideview.WEEKLY.events.indexOf(battle.stage):battle.stageIndex;started=Date.now();add('start',{stage,cleared})}
   if(runId&&ended!==runId&&(battle.state==='won'||battle.state==='advancing'||battle.state==='lost')){
    ended=runId;const won=battle.state!=='lost';
    add('end',{stage,result:won?'won':'lost',secs:Math.round(battle.time||0),

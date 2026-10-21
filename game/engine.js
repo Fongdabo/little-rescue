@@ -244,6 +244,31 @@
     {number: 2, name: 'หุบเขาหิมะ', icon: '❄️', text: 'ภูเขาหิมะ ทะเลสาบน้ำแข็ง และปราสาทแสงเหนือ'}
   ];
   STAGES.forEach(stage => { stage.chapter = stage.chapter || 1; });
+  // 1.17 weekly event stage, like LINE Rangers' event stages: one of WEEKLY.events each week (Monday 00:00 Thai time),
+  // open once stage WEEKLY.unlock is cleared. The first WEEKLY.paidPerDay wins a day pay rewardCoins, later wins
+  // pay nothing; WEEKLY.chestWins wins in one week open a chest of WEEKLY.chestCoins once. The server wallet
+  // (functions/_lib/economy.js WEEKLY) has the same numbers and the same weekOf().
+  const WEEKLY = {unlock: 3, paidPerDay: 3, chestWins: 5, chestCoins: 200, events: [
+    {id: 'event-gold', event: true, number: 'EV', chapter: 0, name: 'ทุ่งเหรียญทอง', grade: 'golden', icon: '💰',
+      text: 'ศัตรูมาเยอะแต่ตัวบาง เก็บเหรียญให้เต็มกระเป๋า',
+      enemyHP: 650, duration: 90, spawnInterval: 3.6, hpMul: 0.75, damageMul: 0.8, rewardCoins: 90},
+    {id: 'event-king', event: true, number: 'EV', chapter: 0, name: 'ราชาเห็ดคืนชีพ', grade: 'night', icon: '👑',
+      text: 'ราชาเห็ดยักษ์ออกมาตั้งแต่ต้นด่าน เตรียมปืนใหญ่ไว้',
+      enemyHP: 700, duration: 100, spawnInterval: 4.6, hpMul: 1, damageMul: 0.95, rewardCoins: 120,
+      boss: {at: 20, baseRatio: 0.95, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 1.8, scale: 1.6, speedMul: 0.7}},
+    {id: 'event-storm', event: true, number: 'EV', chapter: 0, name: 'พายุเห็ดบุก', grade: 'sunset', icon: '🌪️',
+      text: 'ศัตรูวิ่งเข้ามาไม่หยุด ส่งตัวกันหน้าไว้ก่อน',
+      enemyHP: 750, duration: 100, spawnInterval: 3.3, hpMul: 0.7, damageMul: 0.85, rewardCoins: 110},
+    {id: 'event-snow', event: true, number: 'EV', chapter: 0, name: 'เทศกาลหิมะแรก', grade: 'snow', icon: '⛄',
+      text: 'ราชินีเห็ดน้ำแข็งมาเยือนทุ่ง เรียกลูกน้องตลอด',
+      enemyHP: 800, duration: 100, spawnInterval: 4.4, hpMul: 1.15, damageMul: 1.1, rewardCoins: 120,
+      boss: {at: 40, baseRatio: 0.7, name: 'ราชินีเห็ดน้ำแข็ง', enemy: 4, hpMul: 4.5, damageMul: 1.8, scale: 1.6, speedMul: 0.7,
+        calls: 10, aura: '#c9b6ff'}}
+  ]};
+  // Week number counted from Monday 1970-01-05 00:00 in Thai time (UTC+7). ms = Date.now().
+  const weekOf = ms => Math.floor((ms + 7 * 3600000 - 4 * 86400000) / (7 * 86400000));
+  const weeklyEvent = ms => WEEKLY.events[((weekOf(ms) % WEEKLY.events.length) + WEEKLY.events.length) % WEEKLY.events.length];
+  const weekEnds = ms => (weekOf(ms) + 1) * 7 * 86400000 + 4 * 86400000 - 7 * 3600000;
   // 1.9 battle items, like LINE Rangers' pre-battle items: free, each usable once per battle, chosen before it.
   const ITEMS = [
     {id: 'meteor', name: 'ฝนลูกสน', icon: '☄️', text: 'ลูกสนตกใส่ศัตรู 3 ตัวหน้าสุด แรง 120'},
@@ -350,6 +375,7 @@
       this.runId = 0;
       this.lastError = '';
       this.stageIndex = 0;
+      this.eventStage = null;
       this.levels = UNITS.map(() => 1);
       this.stars = UNITS.map(() => 1);
       this.equippedItems = ITEMS.map(item => item.id);
@@ -357,12 +383,22 @@
       this._resetFields();
     }
 
-    get stage() { return STAGES[this.stageIndex] || STAGES[0]; }
+    get stage() { return this.eventStage || STAGES[this.stageIndex] || STAGES[0]; }
 
     setStage(index) {
       if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
       if (!Number.isInteger(index) || !STAGES[index]) return false;
       this.stageIndex = index;
+      this.eventStage = null;
+      if (this.state === 'ready') this._resetFields();
+      return true;
+    }
+
+    // 1.17: play a WEEKLY event stage instead of the selected map stage (stageIndex is kept for the map).
+    setEventStage(spec) {
+      if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
+      if (!spec || !WEEKLY.events.includes(spec)) return false;
+      this.eventStage = spec;
       if (this.state === 'ready') this._resetFields();
       return true;
     }
@@ -1160,12 +1196,13 @@
       if (this.state !== 'running') this.projectiles = [];
     }
 
-    claimReward() {
+    // coins: what this win pays when the caller knows better than the stage (a weekly event past its daily paid wins).
+    claimReward(coins) {
       if (this.state !== 'won' || this.claimed) return false;
       // Mark first, then mutate balances, so repeated handlers remain idempotent.
       this.claimed = true;
-      const reward = {coins: this.stage.rewardCoins, cookies: CONFIG.rewardCookies,
-        friend: !this.progress.rescued, stageIndex: this.stageIndex};
+      const reward = {coins: Number.isInteger(coins) && coins >= 0 ? coins : this.stage.rewardCoins, cookies: CONFIG.rewardCookies,
+        friend: !this.progress.rescued, stageIndex: this.stageIndex, event: this.stage.event ? this.stage.id : null};
       this.bank.add(reward.cookies);
       this.progress.coins += reward.coins;
       this.progress.rescued = true;
@@ -1176,6 +1213,6 @@
     }
   }
 
-  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, CHAPTERS, LEVELS, ITEMS, STARS, SUMMON,
+  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, CHAPTERS, WEEKLY, weekOf, weeklyEvent, weekEnds, LEVELS, ITEMS, STARS, SUMMON,
     levelMultiplier, levelCost, starMultiplier, rollSummon, EnergyBank, Battle};
 }));

@@ -112,7 +112,7 @@ async function route(request, env, path) {
     return json({playerId: auth.playerId, wallet: publicView(await getWallet(db, auth.playerId))});
   }
   if (path === 'wallet/run' && method === 'POST') {
-    const outcome = await startRun(db, auth.playerId, (await readBody(request)).stage, now);
+    const body = await readBody(request), outcome = await startRun(db, auth.playerId, body.stage, now, typeof body.event === 'string' ? body.event : null);
     return outcome.error ? fail(outcome.error === 'rate-limited' ? 429 : 409, outcome.error) : json(outcome);
   }
   if (path === 'wallet/ops' && method === 'POST') {

@@ -12,6 +12,7 @@ const PRECACHE=/* PRECACHE_START */[
   "app.js",
   "cloud-save.js",
   "wallet.js",
+  "weekly.js",
   "cloud.css",
   "shop.css",
   "shop.js",
