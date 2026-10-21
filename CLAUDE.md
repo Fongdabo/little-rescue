@@ -11,9 +11,13 @@ The owner writes Thai; reply in Thai.
   `little-rescue-meta-v1` (`{v, cleared, levels[5], stage}`, app.js `readMeta`/`writeMeta`).
   Daily missions + 7-day login (1.8) use `little-rescue-daily-v1` (daily-missions.js); claims are written inside
   `savedAction` so they hold the save lock.
-  Summon + star grades (1.10) use `little-rescue-summon-v1` (summon.js, `{v, units:{<unitId>:{star,shards}}, sinceLegend,
-  pulls, freeDay}`), keyed by unit id; written inside `savedAction` before coins are spent. Rates live in engine.js `SUMMON`
+  Summon + star grades (1.12) use `little-rescue-summon-v1` (summon.js, `{v, units:{<unitId>:{star,shards}}, sinceLegend,
+  pulls, freeDay}`), keyed by unit id; written inside `savedAction` before coins are spent; cloud-save.js carries it as `bundle.summon`. Rates live in engine.js `SUMMON`
   and are shown in the game: keep the in-game table and the README in step with any change.
+- Cloud save (1.11): `functions/api/[[path]].js` (Pages Function, D1 bound as `SAVES_DB` (`DB` is the stats DB); no binding = 503 and the ☁️ chip
+  stays hidden). `cloud-save.js` uploads `{transfer, meta, daily}` with compare-and-swap `rev`; account in
+  `little-rescue-cloud-v1`. Restores go through `SideviewBridge.importCloud` (only when import is safe). Local save stays primary.
+  Test locally: `wrangler pages dev game --d1 SAVES_DB=local` from the repo root.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).

@@ -197,7 +197,7 @@
   const LEVELS = {max: 10, step: 0.1, costBase: 20};
   const levelMultiplier = level => 1 + LEVELS.step * (clamp(Math.floor(level) || 1, 1, LEVELS.max) - 1);
   const levelCost = level => LEVELS.costBase * level;
-  // 1.10 star grades, raised with hero shards from summons (summon.js). Every hero starts at 1 star, which is
+  // 1.12 star grades, raised with hero shards from summons (summon.js). Every hero starts at 1 star, which is
   // ×1, so stage balance without summons is unchanged. shards[s] / coins[s] = cost to go from s to s+1 stars.
   const STARS = {max: 5, step: 0.15, shards: [0, 0, 5, 10, 20, 40], coins: [0, 0, 50, 100, 200, 400]};
   const starMultiplier = star => 1 + STARS.step * (clamp(Math.floor(star) || 1, 1, STARS.max) - 1);

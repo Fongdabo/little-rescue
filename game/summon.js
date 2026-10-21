@@ -1,4 +1,4 @@
-/* 1.10: summon (gacha) and star grades, paid with in-game coins only. Pulls give hero shards; shards plus coins
+/* 1.12: summon (gacha) and star grades, paid with in-game coins only. Pulls give hero shards; shards plus coins
    raise a hero's star grade (engine.js STARS, +15% HP and power per star). State lives in its own key,
    little-rescue-summon-v1, keyed by unit id so heroes added later fit in; the schema 2 save is never widened.
    Coins move through app.js savedAction, which holds the save lock, and this key is written inside that lock

@@ -1,4 +1,4 @@
-/* 1.10 summon tab (summon.js): pull buttons, results, rate table and star grades. */
+/* 1.12 summon tab (summon.js): pull buttons, results, rate table and star grades. */
 .summon-buttons {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
