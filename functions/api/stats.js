@@ -75,9 +75,9 @@ export async function onRequestGet({ request, env }) {
     q(`SELECT day, COUNT(DISTINCT pid) AS players, COUNT(DISTINCT CASE WHEN age = 0 THEN pid END) AS new_players,
          COUNT(DISTINCT CASE WHEN app = 1 THEN pid END) AS app_players
        FROM events WHERE test = ? AND day >= ? GROUP BY day ORDER BY day`, test, since),
-    // sessions and time played per day (longest "active" report of each session)
-    q(`SELECT day, COUNT(*) AS sessions, CAST(AVG(s) AS INTEGER) AS avg_secs, SUM(s) AS total_secs FROM
-         (SELECT MIN(day) AS day, sid, MAX(secs) AS s FROM events WHERE test = ? AND day >= ? AND kind = 'active' GROUP BY sid)
+    // sessions per day (any event) and time played (longest "active" report of each session that sent one)
+    q(`SELECT day, COUNT(*) AS sessions, COUNT(s) AS timed, CAST(AVG(s) AS INTEGER) AS avg_secs, SUM(s) AS total_secs FROM
+         (SELECT MIN(day) AS day, sid, MAX(CASE WHEN kind = 'active' THEN secs END) AS s FROM events WHERE test = ? AND day >= ? GROUP BY sid)
        GROUP BY day ORDER BY day`, test, since),
     // per stage: who tried, who won, how long, how close the losses were, how many left mid-battle
     q(`SELECT stage, COUNT(DISTINCT CASE WHEN kind = 'start' THEN pid END) AS players,
