@@ -195,6 +195,34 @@
   const LEVELS = {max: 10, step: 0.1, costBase: 20};
   const levelMultiplier = level => 1 + LEVELS.step * (clamp(Math.floor(level) || 1, 1, LEVELS.max) - 1);
   const levelCost = level => LEVELS.costBase * level;
+  // 1.10 star grades, raised with hero shards from summons (summon.js). Every hero starts at 1 star, which is
+  // ×1, so stage balance without summons is unchanged. shards[s] / coins[s] = cost to go from s to s+1 stars.
+  const STARS = {max: 5, step: 0.15, shards: [0, 0, 5, 10, 20, 40], coins: [0, 0, 50, 100, 200, 400]};
+  const starMultiplier = star => 1 + STARS.step * (clamp(Math.floor(star) || 1, 1, STARS.max) - 1);
+  // Sample summon table, shown in full in the game. Weights are percent per pull and every hero is equally
+  // likely inside a tier. A 10-pull always has at least one rare; the 50th pull without a legend is a legend.
+  const SUMMON = {cost: 30, tenCost: 270, pity: 50,
+    tiers: [
+      {id: 'common', name: 'ธรรมดา', shards: 1, weight: 70},
+      {id: 'rare', name: 'หายาก', shards: 3, weight: 25},
+      {id: 'legend', name: 'ตำนาน', shards: 10, weight: 5}]};
+  // rand() returns [0, 1). sinceLegend counts pulls since the last legend. Pure, so it can be tested.
+  function rollSummon(rand, count, sinceLegend) {
+    const results = [];
+    let since = Math.max(0, Math.floor(sinceLegend) || 0);
+    for (let i = 0; i < count; i++) {
+      let roll = rand() * 100, tier = SUMMON.tiers[0];
+      for (const t of SUMMON.tiers) { if (roll < t.weight) { tier = t; break; } roll -= t.weight; }
+      if (since + 1 >= SUMMON.pity) tier = SUMMON.tiers[2];
+      results.push({tier: tier.id, unit: Math.min(UNITS.length - 1, Math.floor(rand() * UNITS.length)), shards: tier.shards});
+      since = tier.id === 'legend' ? 0 : since + 1;
+    }
+    if (count >= 10 && results.every(r => r.tier === 'common')) {
+      const last = results[results.length - 1];
+      last.tier = 'rare'; last.shards = SUMMON.tiers[1].shards;
+    }
+    return {results, sinceLegend: since};
+  }
 
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
   const isAmount = n => Number.isFinite(n) && n >= 0;
@@ -263,6 +291,7 @@
       this.lastError = '';
       this.stageIndex = 0;
       this.levels = UNITS.map(() => 1);
+      this.stars = UNITS.map(() => 1);
       this.equippedItems = ITEMS.map(item => item.id);
       this._resetFields();
     }
@@ -280,6 +309,12 @@
     setLevels(levels) {
       if (!Array.isArray(levels) || levels.length !== UNITS.length) return false;
       this.levels = levels.map(level => clamp(Math.floor(level) || 1, 1, LEVELS.max));
+      return true;
+    }
+
+    setStars(stars) {
+      if (!Array.isArray(stars) || stars.length !== UNITS.length) return false;
+      this.stars = stars.map(star => clamp(Math.floor(star) || 1, 1, STARS.max));
       return true;
     }
 
@@ -504,7 +539,7 @@
     summon(index) {
       if (this.state !== 'running' || !Number.isInteger(index) || !UNITS[index] ||
           !this.selectedRoster.includes(index)) return false;
-      const spec = UNITS[index], power = levelMultiplier(this.levels[index]);
+      const spec = UNITS[index], power = levelMultiplier(this.levels[index]) * starMultiplier(this.stars[index]);
       if (this.allies.length >= CONFIG.maxAllies || this.cooldowns[index] > 1e-9 ||
           this.flux + 1e-9 < spec.cost) return false;
       // All guards precede this single mutation: repeated clicks cannot double spend.
@@ -519,7 +554,7 @@
         faction: 'ally', name: spec.name, x: CONFIG.homeX + CONFIG.spawnInset,
         hp: spec.hp * power, maxHP: spec.hp * power, damage: spec.damage * power, range: spec.range,
         attackRange: spec.range, stopDistance: spec.stopDistance,
-        speed: spec.speed, cooldown: 0.12, healCooldown: 0, power, level: this.levels[index],
+        speed: spec.speed, cooldown: 0.12, healCooldown: 0, power, level: this.levels[index], star: this.stars[index],
         attackLock: 0, movement: 'hold', targetId: null, targetX: null,
         formationAnchorId: null, formationGap: 0,
         retreatRemaining: ['guard', 'scout'].includes(spec.kind) ? 0 : CONFIG.retreatLimitWithoutScreen,
@@ -1016,6 +1051,6 @@
     }
   }
 
-  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, LEVELS, ITEMS,
-    levelMultiplier, levelCost, EnergyBank, Battle};
+  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, LEVELS, ITEMS, STARS, SUMMON,
+    levelMultiplier, levelCost, starMultiplier, rollSummon, EnergyBank, Battle};
 }));

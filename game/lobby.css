@@ -8,7 +8,8 @@
 #preflightControls[data-tab="adventure"] > :nth-child(n+4),
 #preflightControls[data-tab="team"] > :not(:nth-child(4), :nth-child(5), :nth-child(6)),
 #preflightControls[data-tab="upgrade"] > :not(:nth-child(7), :nth-child(8)),
-#preflightControls[data-tab="book"] > :not(.hero-book) {
+#preflightControls[data-tab="book"] > :not(.hero-book),
+#preflightControls[data-tab="summon"] > :not(.summon-panel) {
   display: none !important;
 }
 
@@ -21,7 +22,7 @@
   bottom: -1px;
   z-index: 3;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 4px;
   margin: 10px -6px -6px;
   padding: 6px 4px 4px;
@@ -221,6 +222,15 @@
   background: var(--green);
   color: #fff;
   font-size: 10px;
+}
+
+.book-stars {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  color: #e9a63a;
+  font-size: 10px;
+  letter-spacing: -1px;
 }
 
 .book-card dl {

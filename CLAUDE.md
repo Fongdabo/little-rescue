@@ -11,6 +11,9 @@ The owner writes Thai; reply in Thai.
   `little-rescue-meta-v1` (`{v, cleared, levels[5], stage}`, app.js `readMeta`/`writeMeta`).
   Daily missions + 7-day login (1.8) use `little-rescue-daily-v1` (daily-missions.js); claims are written inside
   `savedAction` so they hold the save lock.
+  Summon + star grades (1.10) use `little-rescue-summon-v1` (summon.js, `{v, units:{<unitId>:{star,shards}}, sinceLegend,
+  pulls, freeDay}`), keyed by unit id; written inside `savedAction` before coins are spent. Rates live in engine.js `SUMMON`
+  and are shown in the game: keep the in-game table and the README in step with any change.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).
