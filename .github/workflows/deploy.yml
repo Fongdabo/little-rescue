@@ -1,0 +1,56 @@
+# Checks every change, then sends the game folder to the existing Cloudflare Pages project.
+# main → the live game (same URL as before, so players keep their saves).
+# pull request → a preview link such as https://pr-3.little-rescue.pages.dev (its own saves, safe to test).
+name: Check and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/check.mjs
+      - name: Zip for manual Direct Upload (fallback)
+        run: cd game && zip -qr "../Little-Rescue-Cloudflare-Upload.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Little-Rescue-Cloudflare-Upload
+          path: Little-Rescue-Cloudflare-Upload.zip
+          retention-days: 30
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    # forks never get the Cloudflare secrets
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+      PROJECT: ${{ vars.CLOUDFLARE_PROJECT || 'little-rescue' }}
+      BRANCH: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cloudflare secrets not set yet
+        if: env.HAS_TOKEN != 'true'
+        run: echo "::warning::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Settings › Secrets and variables › Actions to deploy automatically. Until then, upload the zip from the check job by hand."
+      - name: Deploy to Cloudflare Pages
+        if: env.HAS_TOKEN == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy game --project-name=${{ env.PROJECT }} --branch=${{ env.BRANCH }} --commit-dirty=true
