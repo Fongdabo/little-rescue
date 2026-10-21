@@ -5,7 +5,7 @@
 // Not a route: this file exports no onRequest handler.
 
 import {apply, getWallet, ensureWallet} from './wallet.js';
-import {UNIT_IDS, STAGE_REWARDS, LEVELS, levelCost, STARS, SUMMON, MISSIONS, LOGIN, PLAY, MAX_SHARDS, rollSummon} from './economy.js';
+import {UNIT_IDS, BASE_HEROES, UNLOCK, STAGE_REWARDS, LEVELS, levelCost, STARS, SUMMON, MISSIONS, LOGIN, PLAY, MAX_SHARDS, rollSummon} from './economy.js';
 
 const DAY = 86400000;
 const isDay = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + 'T00:00:00Z'));
@@ -33,12 +33,15 @@ const count = (db, playerId, kinds, since) => db.prepare(
 // First contact: a player who already played before 1.13 brings their local progress into the wallet once.
 // Coins are capped (PLAY.seedCoinCap); everything else is clamped to legal values. The ledger row keeps what was sent.
 export async function seed(db, playerId, body, now = Date.now()) {
-  const levels = Array.isArray(body.levels) && body.levels.length === UNIT_IDS.length
-    ? body.levels.map(l => int(l, 1, LEVELS.max) ? l : 1) : UNIT_IDS.map(() => 1);
+  // A device sends 5 levels (before 1.14.1) or one per UNIT_IDS; missing sticker heroes start at Lv 1.
+  const levels = UNIT_IDS.map((id, i) => Array.isArray(body.levels) && body.levels.length >= BASE_HEROES &&
+    int(body.levels[i], 1, LEVELS.max) ? body.levels[i] : 1);
+  const owned = Array.isArray(body.owned) ? body.owned.filter(id => UNLOCK[id]) : [];
   const units = {};
   for (const id of UNIT_IDS) {
     const u = body.units?.[id];
     units[id] = {star: int(u?.star, 1, STARS.max) ? u.star : 1, shards: int(u?.shards, 0, MAX_SHARDS) ? u.shards : 0};
+    if (owned.includes(id)) units[id].owned = true;
   }
   const coins = int(body.coins, 0, 1e9) ? body.coins : 0;
   return apply(db, playerId, {ref: 'seed:' + playerId, kind: 'seed', now}, w => {
@@ -115,6 +118,7 @@ export async function applyOp(db, playerId, op, now = Date.now()) {
       case 'level': {
         const unit = op.unit;
         if (!int(unit, 0, UNIT_IDS.length - 1)) return 'bad-unit';
+        if (unit >= BASE_HEROES && !w.units[UNIT_IDS[unit]].owned) return 'locked';
         const level = w.levels[unit];
         if (op.level !== level) return 'stale';
         if (level >= LEVELS.max) return 'max';
@@ -123,6 +127,14 @@ export async function applyOp(db, playerId, op, now = Date.now()) {
         w.coins -= cost; w.levels[unit] = level + 1;
         if (nearToday(day, now)) dayEntry(w, day).levelups += 1;
         return {detail: {unit, level: level + 1}, result: {level: level + 1}};
+      }
+      case 'unlock': {
+        const id = op.unit, price = UNLOCK[id];
+        if (!price) return 'bad-unit';
+        if (w.units[id].owned) return 'owned';
+        if (w.coins < price) return 'insufficient';
+        w.coins -= price; w.units[id].owned = true;
+        return {detail: {unit: id, price}, result: {owned: true}};
       }
       case 'star': {
         const h = w.units[op.unit];
@@ -143,7 +155,8 @@ export async function applyOp(db, playerId, op, now = Date.now()) {
         if (pull === 'free' && w.freeDay === day) return 'used';
         if (w[currency] < price) return 'insufficient';
         const roll = rollSummon(random, n, w.sinceLegend);
-        for (const r of roll.results) { const h = w.units[UNIT_IDS[r.unit]]; h.shards = Math.min(MAX_SHARDS, h.shards + r.shards); }
+        // A first summon of a sticker hero also unlocks it.
+        for (const r of roll.results) { const h = w.units[UNIT_IDS[r.unit]]; h.shards = Math.min(MAX_SHARDS, h.shards + r.shards); if (r.unit >= BASE_HEROES) h.owned = true; }
         w[currency] -= price; w.sinceLegend = roll.sinceLegend; w.pulls += n;
         if (pull === 'free') w.freeDay = day;
         return {detail: {pull, currency, price}, result: {results: roll.results}};

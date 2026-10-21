@@ -109,5 +109,60 @@ window.SideviewArt=Object.freeze({
       "width": 1184,
       "height": 1130
     }
+  },
+  "heroes-v3/hero-guard-bison.webp": {
+    "profile": "sticker-guard-bison",
+    "embeddedEquipment": true,
+    "sourceFacing": 1,
+    "sourceBounds": {
+      "x": 0,
+      "y": 0,
+      "width": 1017,
+      "height": 838
+    }
+  },
+  "heroes-v3/hero-agile-kangaroo.webp": {
+    "profile": "sticker-agile-kangaroo",
+    "embeddedEquipment": true,
+    "sourceFacing": 1,
+    "sourceBounds": {
+      "x": 0,
+      "y": 0,
+      "width": 980,
+      "height": 1002
+    }
+  },
+  "heroes-v3/hero-ranged-peacock.webp": {
+    "profile": "sticker-ranged-peacock",
+    "embeddedEquipment": true,
+    "sourceFacing": 1,
+    "sourceBounds": {
+      "x": 0,
+      "y": 0,
+      "width": 937,
+      "height": 952
+    }
+  },
+  "heroes-v3/hero-helper-wombat.webp": {
+    "profile": "sticker-helper-wombat",
+    "embeddedEquipment": true,
+    "sourceFacing": 1,
+    "sourceBounds": {
+      "x": 0,
+      "y": 0,
+      "width": 984,
+      "height": 695
+    }
+  },
+  "heroes-v3/hero-mage-lemur.webp": {
+    "profile": "sticker-mage-lemur",
+    "embeddedEquipment": true,
+    "sourceFacing": 1,
+    "sourceBounds": {
+      "x": 0,
+      "y": 0,
+      "width": 866,
+      "height": 811
+    }
   }
 });
