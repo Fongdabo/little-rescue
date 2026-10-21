@@ -22,7 +22,8 @@
  *   victoryActors/victorySnapshot expose that trip; combat statistics freeze.
  *   .pause() resumes the exact running/advancing phase that it interrupted.
  *   .setRoster(indices) selects a nonempty, unique list of UNITS indices only
- *   in ready/won/lost; selectedRoster defaults to all and survives replay.
+ *   in ready/won/lost (at most CONFIG.maxTeam); selectedRoster defaults to the
+ *   original five and survives replay.
  *   Manual and Auto summon only members of that roster, at unchanged costs.
  *   Units expose range/attackRange, stopDistance, targetId/targetX, movement and
  *   attackLock. Feet move at the real speed, re-form behind shorter-reach friends,
@@ -66,7 +67,7 @@
     homeHP: 360, enemyHP: 500, duration: 75,
     entryCost: 3, energyMax: 30, refillMs: 5 * 60 * 1000,
     fluxInitial: 40, fluxMax: 100, fluxRegen: 9,
-    maxAllies: 12, maxEnemies: 14,
+    maxAllies: 12, maxEnemies: 14, maxTeam: 5, baseHeroes: 5,
     fixedStep: 1 / 60, maxFrameDt: 0.5,
     enemyFirstSpawn: 2, enemySpawnInterval: 5,
     enemyInitialHP: 72, enemyHPGrowth: 5,
@@ -151,7 +152,40 @@
       hp: 120, damage: 22, interval: 1.7, speed: 34, range: 250, stopDistance: 240,
       cooldown: 10, style: 'burst', color: '#c7a4f5', splash: 85}
   ];
-  UNITS.forEach((unit, index) => Object.assign(unit, CLASSES[index]));
+  // Sticker heroes (2.0) append after the original five. Indices 0-4 never move:
+  // the schema 2 save roster and meta-v1 levels only ever describe those five.
+  // Each sticker hero names its classId; art and unlocks live outside the engine.
+  const STICKER_UNITS = [
+    {id: 'sticker-bison', name: 'ตุ้มต้อม', role: 'รับ', classId: 'guard', kind: 'guard', type: 'stone',
+      asset: 'heroes-v3/hero-guard-bison.webp', filename: 'heroes-v3/hero-guard-bison.webp', cost: 18, unlockCoins: 200,
+      story: 'ไบซันใจดีจากทุ่งกว้าง ยืนถือโล่ไม้บังเพื่อนทุกตัว',
+      hp: 190, damage: 13, interval: 1.2, speed: 34, range: 62, stopDistance: 60,
+      cooldown: 6, style: 'slash', color: '#e6a565'},
+    {id: 'sticker-kangaroo', name: 'เด้งดึ๋ง', role: 'ว่องไว', classId: 'agile', kind: 'scout', type: 'wind',
+      asset: 'heroes-v3/hero-agile-kangaroo.webp', filename: 'heroes-v3/hero-agile-kangaroo.webp', cost: 22, unlockCoins: 200,
+      story: 'จิงโจ้นักชกสายลม กระโดดเข้าไปชกแล้วเด้งกลับในพริบตา',
+      hp: 105, damage: 12, interval: 0.65, speed: 56, range: 160, stopDistance: 150,
+      cooldown: 6, style: 'dash', color: '#5fd0bf'},
+    {id: 'sticker-peacock', name: 'พู่กัน', role: 'ยิงไกล', classId: 'ranged', kind: 'ranger', type: 'star',
+      asset: 'heroes-v3/hero-ranged-peacock.webp', filename: 'heroes-v3/hero-ranged-peacock.webp', cost: 26, unlockCoins: 250,
+      story: 'นกยูงนักธนู ยิงขนแสงดาวได้ไกลกว่าใคร',
+      hp: 80, damage: 20, interval: 1.35, speed: 33, range: 330, stopDistance: 320,
+      cooldown: 7, style: 'bolt', color: '#5fb0f0'},
+    {id: 'sticker-wombat', name: 'หมอนุ่ม', role: 'ช่วยเหลือ', classId: 'helper', kind: 'healer', type: 'stone',
+      asset: 'heroes-v3/hero-helper-wombat.webp', filename: 'heroes-v3/hero-helper-wombat.webp', cost: 22, unlockCoins: 250,
+      story: 'วอมแบตหมอประจำทีม รินชาอุ่นๆ ให้เพื่อนหายเหนื่อย',
+      hp: 110, damage: 6, interval: 1.3, speed: 34, range: 220, stopDistance: 210,
+      cooldown: 8, style: 'heal', color: '#8fd3b0',
+      heal: 14, healInterval: 1.6, healRange: 210},
+    {id: 'sticker-lemur', name: 'ตาโต', role: 'เวท', classId: 'mage', kind: 'burst', type: 'wind',
+      asset: 'heroes-v3/hero-mage-lemur.webp', filename: 'heroes-v3/hero-mage-lemur.webp', cost: 30, unlockCoins: 300,
+      story: 'ลีเมอร์จอมเวทหางลาย เรียกลมหมุนจากคทาดวงดาว',
+      hp: 110, damage: 23, interval: 1.7, speed: 34, range: 250, stopDistance: 240,
+      cooldown: 10, style: 'burst', color: '#9a8ae8', splash: 85}
+  ];
+  UNITS.push(...STICKER_UNITS);
+  UNITS.forEach((unit, index) => Object.assign(unit,
+    CLASSES.find(c => c.classId === unit.classId) || CLASSES[index], {sticker: index >= 5}));
 
   // Sample enemy balance: wave base HP/damage still escalate via CONFIG.
   // Role behavior is shared with heroes; no new skills or required team roles.
@@ -290,13 +324,14 @@
       this.progress.rescued = Boolean(this.progress.rescued);
       this.mode = 'manual';
       this.state = 'ready';
-      this.selectedRoster = UNITS.map((unit, index) => index);
+      this.selectedRoster = UNITS.slice(0, CONFIG.baseHeroes).map((unit, index) => index);
       this.runId = 0;
       this.lastError = '';
       this.stageIndex = 0;
       this.levels = UNITS.map(() => 1);
       this.stars = UNITS.map(() => 1);
       this.equippedItems = ITEMS.map(item => item.id);
+      this.helper = null;
       this._resetFields();
     }
 
@@ -330,6 +365,7 @@
       this.blastCharge = 0;
       this.bossSpawned = false;
       this.itemsUsed = [];
+      this.helperUsed = false;
       this.freezeRemaining = 0;
       this.shieldRemaining = 0;
       this.homeHP = CONFIG.homeHP;
@@ -395,6 +431,34 @@
       this._projectileSerial = 0;
     }
 
+    // 1.13 friend helper: one borrowed hero {unit, level, star, name}, summoned once per battle at its normal cost.
+    // Chosen before a battle (ready/won/lost), like the roster; null removes it.
+    setHelper(helper) {
+      if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
+      if (helper === null) { this.helper = null; return true; }
+      if (!helper || !Number.isInteger(helper.unit) || !UNITS[helper.unit] ||
+          !Number.isInteger(helper.level) || helper.level < 1 || helper.level > LEVELS.max ||
+          !Number.isInteger(helper.star) || helper.star < 1 || helper.star > STARS.max) return false;
+      this.helper = {unit: helper.unit, level: helper.level, star: helper.star, name: String(helper.name || '').slice(0, 24)};
+      return true;
+    }
+
+    get helperReady() {
+      return Boolean(this.state === 'running' && this.helper && !this.helperUsed &&
+        this.allies.length < CONFIG.maxAllies && this.flux + 1e-9 >= UNITS[this.helper.unit].cost);
+    }
+
+    summonHelper() {
+      if (!this.helperReady) return false;
+      const {unit, level, star, name} = this.helper, spec = UNITS[unit];
+      this.flux = Math.max(0, this.flux - spec.cost);
+      this.helperUsed = true;
+      this.metrics.summons += 1;
+      this.metrics.fluxSpent += spec.cost;
+      this._spawnAlly(spec, unit, level, star, {helper: true, ownerName: name});
+      return true;
+    }
+
     setMode(mode) {
       if (mode !== 'manual' && mode !== 'auto') return false;
       this.mode = mode;
@@ -404,7 +468,7 @@
 
     setRoster(indices) {
       if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
-      if (!Array.isArray(indices) || indices.length === 0 ||
+      if (!Array.isArray(indices) || indices.length === 0 || indices.length > CONFIG.maxTeam ||
           Array.from(indices).some(index => !Number.isInteger(index) || !UNITS[index]) ||
           new Set(indices).size !== indices.length) return false;
       this.selectedRoster = indices.slice();
@@ -560,7 +624,7 @@
     summon(index) {
       if (this.state !== 'running' || !Number.isInteger(index) || !UNITS[index] ||
           !this.selectedRoster.includes(index)) return false;
-      const spec = UNITS[index], power = levelMultiplier(this.levels[index]) * starMultiplier(this.stars[index]);
+      const spec = UNITS[index];
       if (this.allies.length >= CONFIG.maxAllies || this.cooldowns[index] > 1e-9 ||
           this.flux + 1e-9 < spec.cost) return false;
       // All guards precede this single mutation: repeated clicks cannot double spend.
@@ -569,20 +633,25 @@
       this.metrics.summons += 1;
       this.metrics.summonsByUnit[index] += 1;
       this.metrics.fluxSpent += spec.cost;
+      this._spawnAlly(spec, index, this.levels[index], this.stars[index]);
+      return true;
+    }
+
+    _spawnAlly(spec, index, level, star, extra) {
+      const power = levelMultiplier(level) * starMultiplier(star);
       this.allies.push({id: spec.id + '-' + this.runId + '-' + (++this._serial),
         unitId: spec.id, index, kind: spec.kind, type: spec.type,
         classId: spec.classId, classTag: spec.classTag, className: spec.className,
         faction: 'ally', name: spec.name, x: CONFIG.homeX + CONFIG.spawnInset,
         hp: spec.hp * power, maxHP: spec.hp * power, damage: spec.damage * power, range: spec.range,
         attackRange: spec.range, stopDistance: spec.stopDistance,
-        speed: spec.speed, cooldown: 0.12, healCooldown: 0, power, level: this.levels[index], star: this.stars[index],
+        speed: spec.speed, cooldown: 0.12, healCooldown: 0, power, level, star,
         attackLock: 0, movement: 'hold', targetId: null, targetX: null,
         formationAnchorId: null, formationGap: 0,
         retreatRemaining: ['guard', 'scout'].includes(spec.kind) ? 0 : CONFIG.retreatLimitWithoutScreen,
         _retreatSpent: 0,
         attackFlash: 0, blockFlash: 0, hitFlash: 0, blockedDamage: 0,
-        facing: 1, asset: spec.asset});
-      return true;
+        facing: 1, asset: spec.asset, ...extra});
     }
 
     _spawnEnemy(boss) {
@@ -891,7 +960,8 @@
       if (this.mode === 'auto' && this.time + 1e-9 >= this._nextAuto) {
         // Save up for the next role so cheap units cannot starve costly ones.
         // This rotates the selected roster and calls exactly the player's API.
-        if (this.summon(this.selectedRoster[this._autoIndex])) {
+        // A borrowed friend helper goes first, as soon as it is affordable.
+        if (this.summonHelper()) { /* the roster turn waits */ } else if (this.summon(this.selectedRoster[this._autoIndex])) {
           this._autoIndex = (this._autoIndex + 1) % this.selectedRoster.length;
         }
         this._nextAuto = this.time + CONFIG.autoCadence;

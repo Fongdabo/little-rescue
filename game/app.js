@@ -9,13 +9,17 @@ const saves=new window.SideviewSave.SaveStore({storage,locks:navigator.locks||nu
 // Start migration before loading assets; every persistent control waits for it.
 const initialization=saves.initialize();
 const initial=saves.read(),bank=new EnergyBank(initial.energy),battle=new Battle(bank,{...initial.progress});
-battle.setRoster(initial.roster);
+const heroes=window.SideviewHeroes,BASE=CONFIG.baseHeroes;
+// 2.0: the team may include sticker heroes (index 5+), kept in heroes-v1; the schema 2 roster keeps only the original five.
+const rosterFor=saveRoster=>{const t=heroes.team(saveRoster);return t&&t.every(i=>i>=0&&heroes.owned(UNITS[i].id))?t:saveRoster};
+const saveRosterOf=(team,previous)=>{const base=team.filter(i=>i<BASE);return base.length?base:previous};
+battle.setRoster(rosterFor(initial.roster));
 // 1.7 stage/level progress lives in its own key. The schema 2 save above is
 // never widened, so an older open tab or an exported 1.6.x file stays valid.
 const metaKey='little-rescue-meta-v1';
-const metaDefaults=()=>({v:1,cleared:saves.read().progress.rescued?1:0,levels:UNITS.map(()=>1),stage:0});
+const metaDefaults=()=>({v:1,cleared:saves.read().progress.rescued?1:0,levels:UNITS.slice(0,BASE).map(()=>1),stage:0});
 function cleanMeta(m){
- if(m&&m.v===1&&Number.isInteger(m.cleared)&&Array.isArray(m.levels)&&m.levels.length===UNITS.length&&m.levels.every(l=>Number.isInteger(l)&&l>=1&&l<=LEVELS.max)){
+ if(m&&m.v===1&&Number.isInteger(m.cleared)&&Array.isArray(m.levels)&&m.levels.length===BASE&&m.levels.every(l=>Number.isInteger(l)&&l>=1&&l<=LEVELS.max)){
   const cleared=Math.max(0,Math.min(STAGES.length,m.cleared));
   return {v:1,cleared,levels:m.levels.slice(),stage:Number.isInteger(m.stage)?Math.max(0,Math.min(cleared,STAGES.length-1,m.stage)):0};
  }
@@ -27,7 +31,8 @@ function readMeta(){
 }
 function writeMeta(){try{storage?.setItem(metaKey,JSON.stringify(meta));return true}catch{return false}}
 let meta=readMeta(),levelKey='';
-battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());
+const allLevels=()=>UNITS.map((u,i)=>i<BASE?meta.levels[i]:heroes.level(u.id));
+battle.setLevels(allLevels());battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());
 const pwaAssetMap={"background.png":"background.webp","heroes-v2/hero-guard-fongsabo.png":"heroes-v2/hero-guard-fongsabo.webp","heroes-v2/hero-agile-sailom.png":"heroes-v2/hero-agile-sailom.webp","heroes-v2/hero-ranged-maletdao.png":"heroes-v2/hero-ranged-maletdao.webp","heroes-v2/hero-helper-puipan.png":"heroes-v2/hero-helper-puipan.webp","heroes-v2/hero-mage-lukoak.png":"heroes-v2/hero-mage-lukoak.webp","enemies-v2/enemy-guard.png":"enemies-v2/enemy-guard.webp","enemies-v2/enemy-agile.png":"enemies-v2/enemy-agile.webp","enemies-v2/enemy-ranged.png":"enemies-v2/enemy-ranged.webp","enemies-v2/enemy-helper.png":"enemies-v2/enemy-helper.webp","enemies-v2/enemy-mage.png":"enemies-v2/enemy-mage.webp"};
 const assetURL=file=>window.EMBEDDED_ASSETS?.[file]||'assets/'+(pwaAssetMap[file]||file);
 const canvas=$('game'),ctx=canvas.getContext('2d');
@@ -50,7 +55,7 @@ function applySaved(snapshot,force=false){
  if(!force&&snapshot.revision<appliedRevision)return;
  appliedRevision=snapshot.revision;bank.value=snapshot.energy.value;bank.anchor=snapshot.energy.anchor;bank.refresh();
  battle.progress.coins=snapshot.progress.coins;battle.progress.rescued=snapshot.progress.rescued;
- if(battle.state==='ready')battle.setRoster(snapshot.roster);
+ if(battle.state==='ready')battle.setRoster(rosterFor(snapshot.roster));
 }
 async function savedAction(action,options={}){
  if(!ready||actionPending||!window.SideviewPWA.canAct())return false;
@@ -60,7 +65,9 @@ async function savedAction(action,options={}){
    const receipt=await saves.mutate(draft=>{
      applySaved(draft,true);accepted=action()!==false;
      if(!accepted)return false;
-     return {...draft,energy:bank.snapshot(),progress:{...battle.progress},roster:options.roster?[...battle.selectedRoster]:draft.roster};
+     const roster=options.roster?saveRosterOf(battle.selectedRoster,draft.roster):draft.roster;
+     if(options.roster)heroes.setTeam(battle.selectedRoster,roster);
+     return {...draft,energy:bank.snapshot(),progress:{...battle.progress},roster};
    });
    applySaved(receipt.snapshot);return accepted;
  }catch{toast('บันทึกไม่สำเร็จ โปรดตรวจสถานะเซฟด้านล่าง');return false}
@@ -98,7 +105,7 @@ UNITS.forEach((u,index)=>{
  btn.querySelector('.unit-role').textContent=roleName(u);
  const classIcon=document.createElement('img');classIcon.className='unit-class-icon';classIcon.src=roleIcons.get(u.classId).dataURL;classIcon.alt=roleName(u);btn.append(classIcon);
  btn.addEventListener('click',()=>summon(index));$('unitGrid').append(btn);cards.push(btn);
- const choice=document.createElement('button');choice.className='roster-choice';choice.dataset.roster=String(index);choice.setAttribute('aria-pressed',String(battle.selectedRoster.includes(index)));choice.innerHTML=`<img src="${assetURL(u.asset)}" alt=""><span>${u.name}</span>`;choice.addEventListener('click',()=>savedAction(()=>{const roster=battle.selectedRoster.includes(index)?battle.selectedRoster.filter(i=>i!==index):[...battle.selectedRoster,index].sort((a,b)=>a-b);if(!roster.length){toast('เลือกเพื่อนร่วมทีมอย่างน้อย 1 ตัว');return false}return battle.setRoster(roster)},{roster:true}));$('rosterPicker').append(choice);
+ const choice=document.createElement('button');choice.className='roster-choice';choice.dataset.roster=String(index);choice.setAttribute('aria-pressed',String(battle.selectedRoster.includes(index)));choice.innerHTML=`<img src="${assetURL(u.asset)}" alt=""><span>${u.name}</span>`;choice.addEventListener('click',()=>savedAction(()=>{const roster=battle.selectedRoster.includes(index)?battle.selectedRoster.filter(i=>i!==index):[...battle.selectedRoster,index].sort((a,b)=>a-b);if(!roster.length){toast('เลือกเพื่อนร่วมทีมอย่างน้อย 1 ตัว');return false}if(roster.length>CONFIG.maxTeam){toast(`ทีมเต็ม ${CONFIG.maxTeam} ตัวแล้ว เอาตัวอื่นออกก่อน`);return false}return battle.setRoster(roster)},{roster:true}));$('rosterPicker').append(choice);
 });
 document.querySelectorAll('.roster-choice').forEach((button,index)=>{const unit=UNITS[index],type=typeInfo(unit.type),label=document.createElement('small');label.className='choice-role';label.textContent=roleName(unit)+' '+type.glyph;const icon=document.createElement('img');icon.className='choice-class-icon';icon.src=roleIcons.get(unit.classId).dataURL;icon.alt='';label.prepend(icon);button.append(label);button.title=`${roleName(unit)} · สาย${type.name}`;button.setAttribute('aria-label',`${unit.name} · ${roleName(unit)} · สาย${type.name}`)});
 const typeRule=document.createElement('p');typeRule.className='type-rule';typeRule.innerHTML=`<b>หินอุ่น › แสงดาว › สายลม › หินอุ่น</b><br>ได้เปรียบ ×${CONFIG.typeAdvantageMultiplier.toFixed(2)} · เสียเปรียบ ×${CONFIG.typeDisadvantageMultiplier.toFixed(2)} · ไม่บังคับครบสาย`;$('rosterPicker').after(typeRule);
@@ -163,7 +170,7 @@ document.addEventListener('keydown',event=>{
  if(event.repeat||event.ctrlKey||event.altKey||event.metaKey||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
  if(event.key==='Escape'&&battle.state==='ready'){if(!document.querySelector('dialog[open]')){event.preventDefault();setLobby(!lobbyClosed)}return}
  if(event.key==='p'||event.key==='P'||event.key==='Escape'){event.preventDefault();togglePause()}
- if(/^[1-5]$/.test(event.key)){event.preventDefault();summon(Number(event.key)-1)}
+ if(/^[1-5]$/.test(event.key)){event.preventDefault();const index=battle.selectedRoster[Number(event.key)-1];if(index!==undefined)summon(index)}
  if(event.key==='u'||event.key==='U'){event.preventDefault();upgradeFlux()}
  if(event.key==='b'||event.key==='B'){event.preventDefault();fireBlast()}
  for(const [id,key] of Object.entries(itemKeys))if(event.key.toUpperCase()===key){event.preventDefault();useItem(id)}
@@ -181,7 +188,7 @@ function renderStages(){
 }
 function renderLevels(){
  const box=$('levelPanel');box.innerHTML='';
- UNITS.forEach((u,i)=>{const lv=battle.levels[i],cost=levelCost(lv),max=lv>=LEVELS.max,b=document.createElement('button');b.className='level-up';b.dataset.level=String(i);
+ UNITS.forEach((u,i)=>{if(!heroes.owned(u.id))return;const lv=battle.levels[i],cost=levelCost(lv),max=lv>=LEVELS.max,b=document.createElement('button');b.className='level-up';b.dataset.level=String(i);
   b.disabled=max||!ready||actionPending||battle.state!=='ready'||battle.progress.coins<cost;
   b.innerHTML=`<img src="${assetURL(u.asset)}" alt=""><span class="lv-name">${u.name}</span><b>Lv ${lv}</b><small>${max?'เลเวลสูงสุด':`◉ ${cost}`}</small>`;
   b.setAttribute('aria-label',max?`${u.name} เลเวลสูงสุด`:`อัปเลเวล ${u.name} จาก ${lv} ใช้เหรียญ ${cost}`);
@@ -190,9 +197,17 @@ function renderLevels(){
 async function levelUp(index){
  const lv=battle.levels[index],cost=levelCost(lv);if(lv>=LEVELS.max)return;
  const ok=await savedAction(()=>{if(battle.state!=='ready'||battle.progress.coins<cost){toast('เหรียญยังไม่พอ ชนะด่านเพื่อรับเหรียญ');return false}battle.progress.coins-=cost;window.SideviewWallet?.record({kind:'level',unit:index,level:lv});return true});
- if(!ok)return;meta=readMeta();meta.levels[index]=Math.min(LEVELS.max,meta.levels[index]+1);
- if(!writeMeta())toast('บันทึกเลเวลไม่สำเร็จ');battle.setLevels(meta.levels);toast(`${UNITS[index].name} เลเวล ${battle.levels[index]} แล้ว!`);levelKey='';window.SideviewDaily.bump('levelups');sync();
+ if(!ok)return;meta=readMeta();let saved;
+ if(index<BASE){meta.levels[index]=Math.min(LEVELS.max,meta.levels[index]+1);saved=writeMeta()}else saved=heroes.setLevel(UNITS[index].id,lv+1);
+ if(!saved)toast('บันทึกเลเวลไม่สำเร็จ');battle.setLevels(allLevels());toast(`${UNITS[index].name} เลเวล ${battle.levels[index]} แล้ว!`);levelKey='';window.SideviewDaily.bump('levelups');sync();
 }
+// 2.0 sticker heroes join for coins from the hero book (summon.js may also grant them).
+async function unlockHero(index){
+ const u=UNITS[index];if(!u||heroes.owned(u.id))return false;
+ const ok=await savedAction(()=>{if(battle.state!=='ready'||battle.progress.coins<u.unlockCoins){toast('เหรียญยังไม่พอ ชนะด่านเพื่อรับเหรียญ');return false}if(!heroes.grant(u.id))return false;battle.progress.coins-=u.unlockCoins;window.SideviewWallet?.record({kind:'unlock',unit:u.id});return true});
+ if(ok){toast(`${u.name} มาเป็นเพื่อนแล้ว! เลือกลงทีมได้ที่แท็บทีม`);levelKey='';sync()}return ok;
+}
+heroes.onChange(()=>{if(battle.state==='ready'){battle.setLevels(allLevels());battle.setRoster(rosterFor(saves.read().roster))}levelKey='';window.SideviewLobby.refresh();sync()});
 let countedWin=0;
 function markCleared(){
  if(battle.state!=='won'||!battle.claimed)return;
@@ -205,7 +220,7 @@ function refreshMeta(){
  const key=[ready,actionPending,battle.state,battle.progress.coins,battle.stars.join(','),battle.levels.join(','),battle.stageIndex,meta.cleared].join('|');
  if(key===levelKey)return;levelKey=key;renderStages();renderLevels();$('coinText').textContent=battle.progress.coins.toLocaleString('th-TH');if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();window.SideviewLobby.renderBook();
 }
-window.addEventListener('storage',event=>{if(event.key!==metaKey)return;meta=readMeta();if(battle.state==='ready'){battle.setLevels(meta.levels);if(battle.stageIndex>meta.cleared)battle.setStage(meta.stage);stageHeading()}levelKey='';sync()});
+window.addEventListener('storage',event=>{if(event.key!==metaKey)return;meta=readMeta();if(battle.state==='ready'){battle.setLevels(allLevels());if(battle.stageIndex>meta.cleared)battle.setStage(meta.stage);stageHeading()}levelKey='';sync()});
 let countedRun=0;
 function modal(){
  const state=battle.state,claimed=battle.claimed;
@@ -236,7 +251,7 @@ function modal(){
 function sync(){
  window.SideviewStats?.observe(battle,meta.cleared);
  const pwaBlocked=!ready||actionPending||!window.SideviewPWA.canAct();$('actionBtn').disabled=pwaBlocked;$('replayBtn').disabled=pwaBlocked;$('prepareBtn').disabled=pwaBlocked;$('retryBtn').disabled=pwaBlocked;$('exitBtn').disabled=pwaBlocked;$('refillBtn').disabled=pwaBlocked;
- document.querySelectorAll('.roster-choice').forEach((el,i)=>{el.disabled=!ready||actionPending||battle.state!=='ready';el.setAttribute('aria-pressed',String(battle.selectedRoster.includes(i)))});
+ document.querySelectorAll('.roster-choice').forEach((el,i)=>{el.hidden=!heroes.owned(UNITS[i].id);el.disabled=!ready||actionPending||battle.state!=='ready';el.setAttribute('aria-pressed',String(battle.selectedRoster.includes(i)))});
  $('homeText').textContent=`${Math.ceil(battle.homeHP)} / ${CONFIG.homeHP}`;$('enemyText').textContent=`${Math.ceil(battle.enemyHP)} / ${battle.enemyMaxHP}`;
  $('homeFill').style.width=`${Math.max(0,battle.homeHP/CONFIG.homeHP*100)}%`;$('enemyFill').style.width=`${Math.max(0,battle.enemyHP/battle.enemyMaxHP*100)}%`;
  $('fluxText').textContent=`${Math.floor(battle.flux)} / ${battle.fluxCap}`;$('fluxFill').style.width=`${battle.flux/battle.fluxCap*100}%`;
@@ -259,10 +274,12 @@ function sync(){
  $('killText').textContent=battle.state==='ready'?'หยุดพักได้ทุกเวลา':`ป้องกันศัตรูได้ ${battle.kills} ตัว`;
  const victoryText={celebrate:'ชนะแล้ว! ฉลองก่อนกลับบ้าน',boarding:'ทุกคนวิ่งขึ้นรถ กลับด้วยกัน',ready:'ขึ้นครบแล้ว เตรียมออกเดินทาง',depart:'กลับบ้านด้วยกัน!',won:'ภารกิจสำเร็จ'};
  $('missionPill').textContent=battle.state==='won'?'ภารกิจสำเร็จ · เพื่อนปลอดภัยแล้ว':battle.state==='advancing'?(victoryText[battle.victoryPhase]||'กำลังรับเพื่อนขึ้นรถ'):battle.state==='ready'?'รถเดินทาง พร้อมจอดส่งทีม':battle.baseDeployment<1?'กำลังกางโครงสร้างรถฐาน':'รถฐานจอดส่งทีมไปช่วยเพื่อน';
- cards.forEach((btn,i)=>{const cd=battle.cooldowns[i]||0,inTeam=battle.selectedRoster.includes(i);btn.disabled=!inTeam||!ready||battle.state!=='running'||cd>0||battle.flux<UNITS[i].cost||battle.allies.length>=CONFIG.maxAllies;
+ // With only the original five in the team the dock keeps the 1.6.6 five cards; a sticker hero shows the team alone.
+ const stickerTeam=battle.selectedRoster.some(i=>i>=BASE);
+ cards.forEach((btn,i)=>{const cd=battle.cooldowns[i]||0,slot=battle.selectedRoster.indexOf(i),inTeam=slot>=0;btn.hidden=!inTeam&&(i>=BASE||stickerTeam);btn.style.order=inTeam?slot:BASE+i;btn.querySelector('.unit-key').textContent=inTeam?slot+1:'';btn.disabled=!inTeam||!ready||battle.state!=='running'||cd>0||battle.flux<UNITS[i].cost||battle.allies.length>=CONFIG.maxAllies;
    btn.querySelector('.availability').textContent=!inTeam?'ไม่อยู่ในทีม':battle.state==='ready'?'พร้อมเมื่อเริ่มด่าน':battle.state==='paused'?'พักการต่อสู้':cd>.05?`อีก ${cd.toFixed(1)} วินาที`:battle.flux<UNITS[i].cost?'รอละอองใบไม้':battle.state==='running'?'พร้อมเรียก':'จบภารกิจ';
    btn.querySelector('.cooldown').style.transform=`scaleY(${Math.min(1,cd/(UNITS[i].cooldown||4))})`;
- });refreshMeta();modal();window.SideviewPWA.refresh?.();
+ });refreshMeta();modal();window.SideviewPWA.refresh?.();window.SideviewFriends?.tick();
 }
 function round(x,y,w,h,r,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
 // Per-stage light over the painted background only; sprites stay untinted.
@@ -391,7 +408,9 @@ storageNote();
 // Read-only diagnostic snapshots for independent QA; no force-win/debug buttons.
 $('balanceNote').textContent=`ตัวเลขทั้งหมดเป็นค่าตัวอย่างที่แก้ได้ใน engine.js: คุกกี้ดาวสูงสุด ${CONFIG.energyMax} / ค่าเข้า ${CONFIG.entryCost} / ฟื้น 1 ทุก ${CONFIG.refillMs/60000} นาที / ไม่จำกัดเวลา ศัตรูดุขึ้นหลัง ${CONFIG.rageAfter} วินาที / ละอองใบไม้เริ่ม ${CONFIG.fluxInitial} สูงสุด ${CONFIG.fluxMax} ฟื้น +${CONFIG.fluxRegen} ต่อวินาที / รางวัลเหรียญ ${CONFIG.rewardCoins} และคุกกี้ดาว ${CONFIG.rewardCookies} รับได้หนึ่งครั้งต่อรอบที่ชนะ การพัก สลับโหมด และกดเริ่มซ้ำไม่เสียเพิ่ม`;
 document.querySelector('.energy-copy small').textContent=`ใช้เข้าด่านเท่านั้น · ครั้งละ ${CONFIG.entryCost} ชิ้น`;
-window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,starMultiplier,assetURL,toast,saveItems,canEdit:()=>ready&&!actionPending});
+window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,starMultiplier,assetURL,toast,saveItems,heroes,unlockHero,canEdit:()=>ready&&!actionPending});
+// 1.15 friends and guilds: server-side only, nothing in the save; a borrowed helper lives on the battle for one run.
+window.SideviewFriends.mount({battle,UNITS,CONFIG,assetURL,toast,cleared:()=>meta.cleared,owned:i=>heroes.owned(UNITS[i].id)});
 // 1.12 summon and star grades (summon.js). Stars only change before a battle, so a running battle keeps its power.
 window.SideviewSummon.mount({savedAction,toast,assetURL,coins:()=>battle.progress.coins,canAct:()=>ready&&!actionPending&&battle.state==='ready'&&window.SideviewPWA.canAct(),
  spend:coins=>{battle.progress.coins-=coins;levelKey=''},changed:()=>{if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());levelKey='';sync()}});
@@ -414,12 +433,12 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    actionPending=true;sync();let accepted=false;
    try{
      const receipt=await saves.mutate(draft=>{if(draft.revision!==expectedRevision)return false;accepted=true;return {...draft,...clean,revision:draft.revision}},{requireDurable:true});
-     if(!accepted||!receipt.committed)return false;applySaved(receipt.snapshot,true);battle.setRoster(receipt.snapshot.roster);renderedState='';return true;
+     if(!accepted||!receipt.committed)return false;applySaved(receipt.snapshot,true);battle.setRoster(rosterFor(receipt.snapshot.roster));renderedState='';return true;
    }finally{actionPending=false;storageNote();energy();sync()}
  },
  // 1.11 cloud save (cloud-save.js): the stage/level meta travels with the save; daily missions too.
- meta:()=>readMeta(),
- importCloud:async(transfer,cloudMeta,daily,now,summon)=>{
+ meta:()=>readMeta(),levels:()=>allLevels(),
+ importCloud:async(transfer,cloudMeta,daily,now,summon,heroBundle)=>{
    if(!importSafe()||!window.SideviewPWA.canAct()||!saves.writable)return false;
    const clean=window.SideviewTransfer.parse(JSON.stringify(transfer),{now}).save,nextMeta=cleanMeta(cloudMeta);
    if(!nextMeta)return false;
@@ -427,11 +446,11 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    try{
      // Meta and daily are written inside the save lock, the same way daily claims are.
      const receipt=await saves.mutate(draft=>{
-       try{storage.setItem(metaKey,JSON.stringify(nextMeta));if(daily)storage.setItem('little-rescue-daily-v1',JSON.stringify(daily));if(summon)storage.setItem(window.SideviewSummon.KEY,JSON.stringify(summon))}catch{return false}
+       try{storage.setItem(metaKey,JSON.stringify(nextMeta));if(daily)storage.setItem('little-rescue-daily-v1',JSON.stringify(daily));if(summon)storage.setItem(window.SideviewSummon.KEY,JSON.stringify(summon));if(heroBundle)storage.setItem(heroes.KEY,JSON.stringify(heroBundle))}catch{return false}
        accepted=true;return {...draft,...clean,revision:draft.revision}},{requireDurable:true});
      if(!accepted||!receipt.committed)return false;
-     applySaved(receipt.snapshot,true);battle.setRoster(receipt.snapshot.roster);
-     meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
+     applySaved(receipt.snapshot,true);battle.setRoster(rosterFor(receipt.snapshot.roster));
+     meta=readMeta();battle.setLevels(allLevels());battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
      levelKey='';renderedState='';window.SideviewDaily.refresh();return true;
    }finally{actionPending=false;storageNote();energy();sync()}
  },
@@ -443,14 +462,14 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    try{
      const receipt=await saves.mutate(draft=>{
        if(!stillClean())return false;
-       const now=readMeta(),next=cleanMeta({...now,cleared:view.cleared,levels:view.levels});
+       const now=readMeta(),next=cleanMeta({...now,cleared:view.cleared,levels:Array.isArray(view.levels)?view.levels.slice(0,BASE):view.levels});
        if(!next||!Number.isSafeInteger(view.coins)||view.coins<0)return false;
        try{storage.setItem(metaKey,JSON.stringify(next))}catch{return false}
-       if(!window.SideviewSummon.adopt(view))return false;
+       if(!window.SideviewSummon.adopt(view)||!heroes.adopt(view))return false;
        accepted=true;return {...draft,progress:{...draft.progress,coins:view.coins},revision:draft.revision}},{requireDurable:true});
      if(!accepted||!receipt.committed)return false;
-     applySaved(receipt.snapshot,true);
-     meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
+     applySaved(receipt.snapshot,true);battle.setRoster(rosterFor(receipt.snapshot.roster));
+     meta=readMeta();battle.setLevels(allLevels());battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
      levelKey='';renderedState='';return true;
    }finally{actionPending=false;storageNote();energy();sync()}
  }

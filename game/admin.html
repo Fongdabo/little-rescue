@@ -180,12 +180,13 @@ async function showPlayer(id){
  $('player').innerHTML=`<h2>ผู้เล่น <code>${esc(p.id)}</code></h2>
   <p class="hint">สร้างบัญชี ${when(p.createdAt)} · อุปกรณ์ที่เข้าอยู่ ${p.devices} เครื่อง · ใช้งานล่าสุด ${when(p.lastSeen)}</p>
   ${s?`<h3>เซฟบนคลาวด์ (สำเนาจากเครื่องผู้เล่น)</h3><div class="tiles"><div class="tile"><b>${esc(s.coins)}</b><span>เหรียญ</span></div><div class="tile"><b>${esc(s.cookies)}</b><span>คุกกี้ดาว</span></div>
-   <div class="tile"><b>${esc(s.cleared)}</b><span>ด่านที่ผ่าน</span></div><div class="tile"><b>${esc(s.levels.join(' / ')||'–')}</b><span>เลเวลเพื่อน</span></div>
-   <div class="tile"><b>${esc(Object.values(s.stars).join(' / ')||'–')}</b><span>ดาว</span></div><div class="tile"><b>${esc(s.loginStreak??'–')}</b><span>เข้าเกมติดกัน (วัน)</span></div></div>
+   <div class="tile"><b>${esc(s.cleared)}</b><span>ด่านที่ผ่าน</span></div><div class="tile"><b>${esc(s.levels.join(' / ')||'–')}</b><span>เลเวลเพื่อน</span></div><div class="tile"><b>${esc(s.loginStreak??'–')}</b><span>เข้าเกมติดกัน (วัน)</span></div></div>
    <p class="hint">เซฟบนคลาวด์รุ่นที่ ${p.save.rev} · บันทึก ${when(p.save.savedAt)} · ${p.save.size.toLocaleString()} ไบต์ · ตัวเลขชุดนี้มาจากเครื่องผู้เล่น</p>`
    :'<p>ยังไม่มีเซฟบนคลาวด์</p>'}
   ${p.wallet?`<h3>ยอดบนเซิร์ฟเวอร์ (ของจริง)</h3><div class="tiles"><div class="tile"><b>${esc(p.wallet.coins)}</b><span>เหรียญ</span></div><div class="tile"><b>${esc(p.wallet.gems)}</b><span>เพชร</span></div>
-   <div class="tile"><b>${esc(p.wallet.cleared)}</b><span>ด่านที่ผ่าน</span></div><div class="tile"><b>${esc(p.wallet.levels.join(' / '))}</b><span>เลเวลเพื่อน</span></div></div>
+   <div class="tile"><b>${esc(p.wallet.fp)}</b><span>แต้มมิตรภาพ</span></div>
+   <div class="tile"><b>${esc(p.wallet.cleared)}</b><span>ด่านที่ผ่าน</span></div><div class="tile"><b>${p.heroes.filter(h=>h.owned).length} / ${p.heroes.length}</b><span>ตัวละครที่มี</span></div></div>
+   <details><summary>ตัวละคร เลเวล และดาว</summary><table><tr><th>ตัวละคร</th><th class="num">เลเวล</th><th class="num">ดาว</th><th>มีแล้ว</th></tr>${p.heroes.map(h=>`<tr><td><code>${esc(h.unit)}</code></td><td class="num">${h.level}</td><td class="num">${'★'.repeat(h.star)}</td><td>${h.owned?'✓':'–'}</td></tr>`).join('')}</table></details>
    ${p.ledger.length?`<details><summary>รายการเข้าออกล่าสุด ${p.ledger.length} รายการ</summary><table><tr><th>เวลา</th><th>รายการ</th><th class="num">เหรียญ</th><th class="num">คงเหลือ</th></tr>${p.ledger.map(l=>`<tr><td>${when(l.at)}</td><td>${esc(LEDGER[l.kind]||l.kind)}</td><td class="num">${l.coins>0?'+':''}${l.coins}</td><td class="num">${l.balance}</td></tr>`).join('')}</table></details>`:''}`
    :'<p class="hint">ยังไม่มียอดบนเซิร์ฟเวอร์ (ผู้เล่นยังไม่ได้เปิดเกมรุ่น 1.13 ขึ้นไปหลังสร้างบัญชี) ตัวเลขด้านบนมาจากเซฟในเครื่อง</p>'}
   <div class="row"><button type="button" id="giftThis">🎁 ส่งของขวัญให้คนนี้</button></div>
@@ -245,7 +246,7 @@ $('mForm').addEventListener('submit',e=>{e.preventDefault();setMaintenance(true)
 $('mOff').addEventListener('click',()=>setMaintenance(false));
 
 // log
-const LEDGER={seed:'ย้ายยอดเดิมเข้าเซิร์ฟเวอร์',win:'ชนะด่าน','win-offline':'ชนะด่าน (ออฟไลน์)',loss:'แพ้',level:'อัปเลเวล',star:'อัปดาว',summon:'สุ่ม',daily:'ภารกิจรายวัน',gift:'ของขวัญจากแอดมิน'};
+const LEDGER={unlock:'ปลดล็อกตัวละคร','shop-purchase':'ซื้อเพชร','shop-refund':'คืนเงินเพชร',friend:'แต้มมิตรภาพ',seed:'ย้ายยอดเดิมเข้าเซิร์ฟเวอร์',win:'ชนะด่าน','win-offline':'ชนะด่าน (ออฟไลน์)',loss:'แพ้',level:'อัปเลเวล',star:'อัปดาว',summon:'สุ่ม',daily:'ภารกิจรายวัน',gift:'ของขวัญจากแอดมิน'};
 const ACTIONS={search:'ค้นหาผู้เล่น','view-player':'ดูข้อมูลผู้เล่น',gift:'ส่งของขวัญ','gift-revoke':'ยกเลิกของขวัญ',event:'สร้างกิจกรรม','event-end':'จบกิจกรรม',maintenance:'ประกาศปิดปรับปรุง'};
 async function loadLog(){
  const d=await run(()=>api('log'));if(!d)return;

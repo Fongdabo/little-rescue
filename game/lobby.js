@@ -8,7 +8,7 @@
  const TABS=[
   {id:'adventure',icon:'🗺️',label:'ผจญภัย'},{id:'team',icon:'🐾',label:'ทีม'},{id:'upgrade',icon:'⬆️',label:'อัปเกรด'},
   {id:'book',icon:'📖',label:'สะสม'},{id:'summon',icon:'✨',label:'สุ่ม'},{id:'missions',icon:'📋',label:'ภารกิจ'},
-  {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน',soon:true},{id:'gifts',icon:'🎁',label:'ของขวัญ'}];
+  {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน'},{id:'gifts',icon:'🎁',label:'ของขวัญ'}];
  const typeName={stone:'หินอุ่น',star:'แสงดาว',wind:'สายลม'};
  let app=null,tab='adventure',bar=null,items=null,book=null;
 
@@ -22,6 +22,7 @@
   if(id==='book')renderBook();
   if(id==='summon')window.SideviewSummon?.render();
   if(id==='shop')window.SideviewShop?.render(true);
+  if(id==='friends')window.SideviewFriends?.open();
   refresh();
  }
  function renderItems(){
@@ -32,9 +33,12 @@
  }
  function renderBook(){
   if(!book||tab!=='book')return;
-  const {battle,UNITS,levelMultiplier,starMultiplier,assetURL}=app;
+  const {battle,UNITS,levelMultiplier,starMultiplier,assetURL,heroes}=app;
   book.innerHTML=UNITS.map((u,i)=>{const lv=battle.levels[i],star=battle.stars[i],p=levelMultiplier(lv)*starMultiplier(star);
-   return `<div class="book-card type-${u.type}"><img src="${assetURL(u.asset)}" alt=""><b>${u.name}</b>
+   if(!heroes.owned(u.id))return `<div class="book-card locked type-${u.type}"><img src="${assetURL(u.asset)}" alt=""><b>${u.name}</b>
+    <small>${u.role} · ${typeName[u.type]||''}</small><span class="book-lv">🔒</span><p class="book-story">${u.story||''}</p>
+    <button type="button" class="book-unlock" data-unlock="${i}" ${battle.state!=='ready'||!app.canEdit()||battle.progress.coins<u.unlockCoins?'disabled':''}>ชวนมาเป็นเพื่อน ◉ ${u.unlockCoins}</button></div>`;
+   return `<div class="book-card type-${u.type}${u.sticker?' sticker':''}"><img src="${assetURL(u.asset)}" alt=""><b>${u.name}</b>
     <small>${u.role} · ${typeName[u.type]||''}</small><span class="book-lv">Lv ${lv}</span><span class="book-stars" aria-label="${star} ดาว">${'★'.repeat(star)}</span>
     <dl><dt>HP</dt><dd>${Math.round(u.hp*p)}</dd><dt>พลัง</dt><dd>${Math.round(u.damage*p)}</dd><dt>ค่าเรียก</dt><dd>❧ ${u.cost}</dd></dl></div>`}).join('')+
    `<div class="book-card boss"><span class="book-boss" aria-hidden="true">👑</span><b>ราชาเห็ดยักษ์</b><small>บอสด่าน 05</small><span class="book-lv">บอส</span>
@@ -44,6 +48,8 @@
   if(!bar)return;
   const ready=app.battle.state==='ready';bar.hidden=!ready;items.hidden=!ready||tab!=='adventure';
   if(ready)renderItems();
+  window.SideviewFriends?.refresh(ready&&tab==='adventure');
+  if(ready&&tab==='book')renderBook();
  }
  function mount(bridge){
   app=bridge;
@@ -56,6 +62,7 @@
   // after the start controls and before the start button, so the desktop two-column grid keeps its children
   controls.after(items);
   book=document.createElement('div');book.className='hero-book';controls.append(book);
+  book.addEventListener('click',event=>{const i=event.target.closest('[data-unlock]')?.dataset.unlock;if(i!==undefined)app.unlockHero(Number(i)).then(renderBook)});
   bar=document.createElement('nav');bar.className='lobby-tabs';bar.setAttribute('aria-label','เมนูหลัก');
   bar.innerHTML=TABS.map(t=>`<button type="button" data-tab="${t.id}" aria-pressed="${t.id===tab}" class="${t.soon?'soon':''}">
    <span aria-hidden="true">${t.icon}</span><small>${t.label}</small>${t.id==='missions'||t.id==='gifts'?'<i class="daily-badge" aria-hidden="true"></i>':''}${t.soon?'<em>เร็วๆ นี้</em>':''}</button>`).join('');

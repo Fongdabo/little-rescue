@@ -1,13 +1,13 @@
 /* 1.11: guest account + cloud save, backed by functions/api/[[path]].js on the same origin.
    The local save stays the one the game plays from (and works offline). The cloud is a copy:
-   - after any change the bundle {save file, stage/level meta, daily missions} is uploaded with compare-and-swap,
+   - after any change the bundle {save file, stage/level meta, daily missions, summon, sticker heroes} is uploaded with compare-and-swap,
    - a newer cloud copy from another device is never applied by itself; the player picks which one to keep,
    - restoring goes through SideviewBridge.importCloud, which only runs before a battle or after the reward.
    Sign-in state lives in its own key, little-rescue-cloud-v1, never in the save. If the server has no database
    (or the page is opened without the API, e.g. from a file), the cloud button stays hidden. */
 (()=>{
  'use strict';
- const KEY='little-rescue-cloud-v1',LOCK='little-rescue-cloud-sync',DAILY='little-rescue-daily-v1',SUMMON='little-rescue-summon-v1';
+ const KEY='little-rescue-cloud-v1',LOCK='little-rescue-cloud-sync',DAILY='little-rescue-daily-v1',SUMMON='little-rescue-summon-v1',HEROES='little-rescue-heroes-v1';
  const $=id=>document.getElementById(id);
  let storage=null;try{storage=window.localStorage}catch{}
  let enabled=false,busy=false,conflict=null,status='',button=null,dialog=null,showCode=false;
@@ -33,10 +33,12 @@
   let daily=null;try{const d=JSON.parse(storage?.getItem(DAILY)||'null');if(d&&d.v===1)daily=d}catch{}
   // 1.12 summon stars and shards ride along; a bundle from an older build simply has none.
   let summon=null;try{const s=JSON.parse(storage?.getItem(SUMMON)||'null');if(s&&s.v===1)summon=s}catch{}
-  return {format:'little-rescue-cloud',formatVersion:1,transfer,meta:window.SideviewBridge.meta(),daily,summon};
+  // 1.13 sticker heroes (owned, levels, full team) ride along the same way.
+  let heroes=null;try{const h=JSON.parse(storage?.getItem(HEROES)||'null');if(h&&h.v===1)heroes=h}catch{}
+  return {format:'little-rescue-cloud',formatVersion:1,transfer,meta:window.SideviewBridge.meta(),daily,summon,heroes};
  }
  // What counts as "changed": the save data, not the export time.
- const fingerprint=b=>JSON.stringify([b.transfer.save,b.meta,b.daily,b.summon||null]);
+ const fingerprint=b=>JSON.stringify([b.transfer.save,b.meta,b.daily,b.summon||null,b.heroes||null]);
  function summary(b){
   if(!b?.transfer?.save)return 'ไม่มีข้อมูล';
   const s=b.transfer.save,m=b.meta||{},levels=Array.isArray(m.levels)?m.levels.reduce((a,n)=>a+n,0):0;
@@ -95,7 +97,7 @@
   // Clocks differ between devices; accept a cloud copy up to a day "ahead" of this one.
   if(stamp-Date.now()>86400000){setStatus('เวลาในเครื่องนี้ไม่ตรง ตั้งเวลาให้ถูกแล้วลองใหม่');return}
   let ok=false;
-  try{ok=await window.SideviewBridge.importCloud(t,pending.bundle.meta,pending.bundle.daily?.v===1?pending.bundle.daily:null,stamp,pending.bundle.summon?.v===1?pending.bundle.summon:null)}catch{ok=false}
+  try{ok=await window.SideviewBridge.importCloud(t,pending.bundle.meta,pending.bundle.daily?.v===1?pending.bundle.daily:null,stamp,pending.bundle.summon?.v===1?pending.bundle.summon:null,pending.bundle.heroes?.v===1?pending.bundle.heroes:null)}catch{ok=false}
   if(!ok){setStatus('ใช้เซฟจากคลาวด์ไม่สำเร็จ เซฟในเครื่องไม่ถูกแก้');return}
   const state=readState(),now=await localBundle();
   if(state)writeState({...state,rev:pending.rev,synced:fingerprint(now),choose:false});

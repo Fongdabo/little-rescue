@@ -6,6 +6,7 @@
 // that IP gets 429 until the window passes. Every change, and every look at a player's save, goes into admin_log.
 import {json, fail, readBody, sha256} from '../../_lib/http.js';
 import {getWallet, publicView} from '../../_lib/wallet.js';
+import {UNIT_IDS, BASE_HEROES} from '../../_lib/economy.js';
 import {sameOrigin, setupLive, maintenance, LIMITS} from '../../_lib/live.js';
 
 const PLAYER_ID = /^LR-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/;
@@ -67,6 +68,9 @@ async function playerDetail(db, id, now) {
   return {
     // The server wallet (1.13+) holds the real coins; the save bundle below is the device's own copy.
     wallet: wallet ? publicView(wallet) : null, ledger,
+    // One row per hero (5 starters + sticker heroes unlocked with coins or summons, 1.14.1).
+    heroes: wallet ? UNIT_IDS.map((unit, i) => ({unit, level: wallet.levels[i] ?? 1, star: wallet.units[unit]?.star ?? 1,
+      owned: i < BASE_HEROES || wallet.units[unit]?.owned === true})) : [],
     id: p.id, createdAt: p.created_at, devices: devices.results[0].devices, lastSeen: devices.results[0].last_seen,
     save: s ? {rev: s.rev, savedAt: s.saved_at, size: s.data.length, summary: saveSummary(s.data), bundle: JSON.parse(s.data)} : null,
     claimed: claims.results, waiting: gifts.results
