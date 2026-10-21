@@ -500,3 +500,10 @@
   .update-banner b { font-size: 13px; }
   .update-banner small { font-size: 10px; }
 }
+
+/* ---------- 1.12.2: leave the fight from the pause menu (app.js askLeave) ---------- */
+.modal .leave-button {
+  border-color: #e3bfae;
+  background: #fbeee6;
+  color: #9a4a33;
+}
