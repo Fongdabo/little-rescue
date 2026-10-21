@@ -38,6 +38,10 @@ if (existsSync(join(LIB, 'economy.js'))) {
   const same = (name, a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) fail(`server economy ${name} differs from the game: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`); };
   same('UNIT_IDS', eco.UNIT_IDS, game.UNITS.map(u => u.id));
   same('STAGE_REWARDS', eco.STAGE_REWARDS, game.STAGES.map(s => s.rewardCoins));
+  same('WEEKLY', [eco.WEEKLY.unlock, eco.WEEKLY.paidPerDay, eco.WEEKLY.chestWins, eco.WEEKLY.chestCoins, eco.WEEKLY.events],
+    [game.WEEKLY.unlock, game.WEEKLY.paidPerDay, game.WEEKLY.chestWins, game.WEEKLY.chestCoins, game.WEEKLY.events.map(e => ({id: e.id, coins: e.rewardCoins}))]);
+  for (const ms of [0, Date.parse('2026-10-18T16:59:59Z'), Date.parse('2026-10-18T17:00:00Z'), Date.now()])
+    same(`weekOf(${ms})`, [eco.weekOf(ms), eco.weeklyEvent(ms).id], [game.weekOf(ms), game.weeklyEvent(ms).id]);
   same('LEVELS', [eco.LEVELS.max, eco.LEVELS.costBase, eco.levelCost(7)], [game.LEVELS.max, game.LEVELS.costBase, game.levelCost(7)]);
   same('STARS', [eco.STARS.max, eco.STARS.shards, eco.STARS.coins], [game.STARS.max, game.STARS.shards, game.STARS.coins]);
   same('SUMMON', [eco.SUMMON.cost, eco.SUMMON.tenCost, eco.SUMMON.pity, eco.SUMMON.tiers.map(t => [t.id, t.shards, t.weight])],
@@ -81,7 +85,7 @@ for (const m of read('index.html').matchAll(/(?:href|src)="([^"#:]+)"/g)) {
 }
 
 // 4. saves players already have must keep loading
-const KEYS = ['little-rescue-sideview-save-v2', 'little-rescue-sideview-save-v1', 'little-rescue-meta-v1', 'little-rescue-daily-v1', 'little-rescue-cloud-v1', 'little-rescue-summon-v1', 'little-rescue-wallet-v1', 'little-rescue-gifts-v1'];
+const KEYS = ['little-rescue-sideview-save-v2', 'little-rescue-sideview-save-v1', 'little-rescue-meta-v1', 'little-rescue-daily-v1', 'little-rescue-cloud-v1', 'little-rescue-summon-v1', 'little-rescue-wallet-v1', 'little-rescue-gifts-v1', 'little-rescue-world-v1', 'little-rescue-weekly-v1'];
 const all = readdirSync(GAME).filter(f => f.endsWith('.js')).map(read).join('\n');
 for (const k of KEYS) if (!all.includes(k)) fail(`save key ${k} disappeared from the scripts`);
 const manifest = JSON.parse(read('manifest.webmanifest'));

@@ -1,7 +1,7 @@
 /* Local prototype UI. Rendering uses copied, replaceable assets. No network APIs. */
 'use strict';
 (() => {
-const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,LEVELS,ITEMS,levelCost,levelMultiplier,starMultiplier,EnergyBank,Battle}=window.Sideview;
+const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,CHAPTERS,WEEKLY,weeklyEvent,LEVELS,ITEMS,levelCost,levelMultiplier,starMultiplier,EnergyBank,Battle}=window.Sideview;
 const $=id=>document.getElementById(id);
 const storageKey='little-rescue-sideview-save-v2';
 let storage=null;try{storage=window.localStorage}catch{}
@@ -25,11 +25,21 @@ function cleanMeta(m){
  }
  return null;
 }
-function readMeta(){
- try{const m=cleanMeta(JSON.parse(storage?.getItem(metaKey)||'null'));if(m)return m}catch{}
- return metaDefaults();
+// 1.17: builds before 1.17 clamp cleared/stage to their 5 stages and may write that back into meta, so the
+// world-map progress is also kept in its own key and the larger of the two wins.
+const worldKey='little-rescue-world-v1';
+function readWorld(){
+ try{const w=JSON.parse(storage?.getItem(worldKey)||'null');if(w&&w.v===1&&Number.isInteger(w.cleared)&&Number.isInteger(w.stage))return w}catch{}
+ return null;
 }
-function writeMeta(){try{storage?.setItem(metaKey,JSON.stringify(meta));return true}catch{return false}}
+function writeWorld(m){storage?.setItem(worldKey,JSON.stringify({v:1,cleared:m.cleared,stage:m.stage}))}
+function readMeta(){
+ let m=null;try{m=cleanMeta(JSON.parse(storage?.getItem(metaKey)||'null'))}catch{}
+ m=m||metaDefaults();const w=readWorld();
+ if(w&&w.cleared>m.cleared)m=cleanMeta({...m,cleared:w.cleared,stage:w.stage})||m;
+ return m;
+}
+function writeMeta(){try{storage?.setItem(metaKey,JSON.stringify(meta));writeWorld(meta);return true}catch{return false}}
 let meta=readMeta(),levelKey='';
 const allLevels=()=>UNITS.map((u,i)=>i<BASE?meta.levels[i]:heroes.level(u.id));
 battle.setLevels(allLevels());battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());
@@ -37,7 +47,7 @@ const pwaAssetMap={"background.png":"background.webp","heroes-v2/hero-guard-fong
 const assetURL=file=>window.EMBEDDED_ASSETS?.[file]||'assets/'+(pwaAssetMap[file]||file);
 const canvas=$('game'),ctx=canvas.getContext('2d');
 const images={},cards=[];
-let timeLabelText='',rageToldRun=[],fluxRateText='',seenEvent=0,seenRun=-1,blastFlash=0,itemFlash={t:0,id:'',xs:[]};
+let bossCallToldRun=-1,timeLabelText='',rageToldRun=[],fluxRateText='',seenEvent=0,seenRun=-1,blastFlash=0,itemFlash={t:0,id:'',xs:[]};
 let ready=false,last=performance.now(),toastUntil=0,renderedState='',lastRun=0,lastClaim=false,actionPending=false,appliedRevision=initial.revision;
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
 let reduced=motionPreference.matches;
@@ -130,7 +140,12 @@ $('actionBtn').addEventListener('click',()=>{
  if(!ready)return;
  if(battle.state==='paused'){battle.pause();sync();return}
  savedAction(()=>{
-   if(battle.state==='ready'){const ok=battle.start();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
+   if(battle.state==='ready'){if(battle.stage.event&&battle.stage!==weeklyEvent(Date.now()))battle.setEventStage(weeklyEvent(Date.now()));const ok=battle.start();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
+   if(battle.state==='won'&&battle.stage.event){
+    // 1.17 weekly event: pays only for the first WEEKLY.paidPerDay wins of the day; every win counts for the chest.
+    const weekly=window.SideviewWeekly,reward=battle.claimReward(weekly.payFor(battle.stage));if(!reward)return false;weekly.addWin();
+    toast(reward.coins?`รับ ${reward.coins} เหรียญจากอีเวนต์แล้ว`:'วันนี้รับรางวัลอีเวนต์ครบแล้ว · ชนะนี้ยังนับเข้าหีบสัปดาห์');
+    window.SideviewWallet?.record({kind:'event',event:reward.event,run:window.SideviewWallet.runFor(battle.runId),battle:Math.round(battle.time*10)/10,summons:battle.metrics.summons});return true}
    if(battle.state==='won'){const reward=battle.claimReward();if(!reward)return false;
     // 1.16 event coin bonus (live.js): added in the same save write as the reward; the server wallet adds the same
     // bonus to the win op (functions/_lib/play.js) so the next wallet sync agrees.
@@ -142,7 +157,7 @@ $('actionBtn').addEventListener('click',()=>{
  }).then(started).then(markCleared);
 });
 // 1.13 server wallet (wallet.js): a signed-in player's battle gets a run ticket so the server can time it.
-function started(ok){if(ok&&battle.state==='running')window.SideviewWallet?.startRun(battle.runId,battle.stageIndex);return ok}
+function started(ok){if(ok&&battle.state==='running')window.SideviewWallet?.startRun(battle.runId,battle.stageIndex,battle.stage.event?battle.stage.id:null);return ok}
 $('replayBtn').addEventListener('click',()=>savedAction(()=>{const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}).then(started));
 // 1.12.2: the pause menu can leave the fight (a loss with no reward) or restart it; each asks once before acting.
 let leaveAsk=null;
@@ -176,15 +191,63 @@ document.addEventListener('keydown',event=>{
  for(const [id,key] of Object.entries(itemKeys))if(event.key.toUpperCase()===key){event.preventDefault();useItem(id)}
 });
 document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden&&['running','advancing'].includes(battle.state)){battle.pause();sync()}});
-function stageHeading(){const st=battle.stage;document.querySelector('.level-number').textContent=String(st.number).padStart(2,'0');document.querySelector('.level-heading h2').textContent=st.name;document.title=`${st.name} • ภารกิจช่วยเพื่อน`;$('battlefield').dataset.grade=st.grade}
-function chooseStage(index){if(index>meta.cleared||!battle.setStage(index))return;meta=readMeta();meta.stage=index;writeMeta();stageHeading();renderedState='';sync()}
+function stageHeading(){const st=battle.stage;document.querySelector('.level-number').textContent=st.event?st.icon:String(st.number).padStart(2,'0');document.querySelector('.level-heading h2').textContent=st.name;document.title=`${st.name} • ภารกิจช่วยเพื่อน`;$('battlefield').dataset.grade=st.grade}
+function chooseEvent(){
+ const spec=weeklyEvent(Date.now());if(meta.cleared<WEEKLY.unlock||!battle.setEventStage(spec))return;
+ stageHeading();levelKey='';renderedState='';sync();
+}
+async function claimChest(){
+ const weekly=window.SideviewWeekly,week=weekly.current().week;
+ const ok=await savedAction(()=>{if(battle.state!=='ready'||!weekly.claimChest())return false;battle.progress.coins+=WEEKLY.chestCoins;window.SideviewWallet?.record({kind:'event-chest',week});return true});
+ if(ok)toast(`🎁 เปิดหีบสัปดาห์ · รับ ${WEEKLY.chestCoins} เหรียญแล้ว!`);levelKey='';sync();
+}
+function chooseStage(index){if(index>meta.cleared||!battle.setStage(index))return;meta=readMeta();meta.stage=index;writeMeta();mapChapter=0;stageHeading();levelKey='';renderedState='';sync()}
+// 1.17 world map: chapter tabs and one painted strip per chapter, stages along a winding road.
+const MAP_SPOTS=[[10,64],[30,36],[50,62],[70,34],[90,58]];
+const MAP_ART={
+ 1:'<defs><linearGradient id="ms1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfeaf6"/><stop offset="1" stop-color="#eef7dc"/></linearGradient></defs><rect width="100" height="100" fill="url(#ms1)"/><circle cx="84" cy="16" r="7" fill="#fff1b8" opacity=".9"/><path d="M0 60 Q18 40 36 56 T70 50 T100 54 V100 H0Z" fill="#b5d896"/><path d="M0 78 Q22 62 46 76 T100 70 V100 H0Z" fill="#94c27b"/><path d="M38 100 Q44 80 58 78 T74 60 T96 48" fill="none" stroke="#9fd3ea" stroke-width="4" opacity=".8"/><g fill="#6f9f5c"><circle cx="20" cy="54" r="3.4"/><circle cx="24" cy="57" r="2.6"/><circle cx="62" cy="47" r="3"/><circle cx="80" cy="74" r="3.6"/></g><g fill="#f7c9d6"><circle cx="14" cy="86" r="1.2"/><circle cx="40" cy="90" r="1.2"/><circle cx="66" cy="88" r="1.2"/><circle cx="88" cy="90" r="1.2"/></g><path d="M86 44 l4 -12 l4 12z" fill="#a8735a"/><rect x="88.6" y="44" width="2.8" height="8" fill="#8a5a46"/>',
+ 2:'<defs><linearGradient id="ms2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9d9f0"/><stop offset="1" stop-color="#f3f7fc"/></linearGradient></defs><rect width="100" height="100" fill="url(#ms2)"/><path d="M0 58 L14 22 L26 50 L40 14 L56 48 L70 18 L86 46 L100 24 V100 H0Z" fill="#9fb3cf"/><path d="M10 32 L14 22 L18 32 L15 30Z M36 24 L40 14 L44 24 L41 22Z M66 28 L70 18 L74 28 L71 26Z M96 34 L100 24 L100 34Z" fill="#fff"/><path d="M0 72 Q24 56 50 70 T100 66 V100 H0Z" fill="#e6eef8"/><ellipse cx="54" cy="86" rx="20" ry="6" fill="#bfe0f2" opacity=".9"/><g fill="#6f9a8a"><path d="M6 80 l3 -9 l3 9z"/><path d="M26 74 l3 -10 l3 10z"/><path d="M78 78 l3 -9 l3 9z"/><path d="M94 72 l2.5 -8 l2.5 8z"/></g><path d="M86 34 l2 -8 l2 8z M92 34 l2 -10 l2 10z" fill="#b6a2e6"/><rect x="85" y="34" width="12" height="9" fill="#c9b6ff"/>'
+};
+let mapChapter=0;
+function chapterOpen(n){const first=STAGES.findIndex(s=>s.chapter===n);return first>=0&&first<=meta.cleared}
+function eventPanel(wk,editable){
+ const ev=wk.event,on=battle.stage===ev,panel=document.createElement('div');panel.className='map-strip event-strip grade-'+ev.grade;
+ panel.innerHTML=`<div class="event-card"><span class="event-icon" aria-hidden="true">${ev.icon}</span><div><b>${ev.name}</b><small>${ev.text}</small>
+  <small>⏳ เปลี่ยนด่านในอีก ${window.SideviewWeekly.timeLeft()} · ◉ ${ev.rewardCoins} ต่อครั้ง · วันนี้เหลือ ${wk.paidLeft}/${WEEKLY.paidPerDay}</small></div>
+  <button type="button" class="event-play" data-event-play ${editable&&!on?'':'disabled'} aria-pressed="${on}">${on?'✓ เลือกแล้ว':'เล่นอีเวนต์'}</button></div>
+  <div class="event-chest"><span aria-hidden="true">${wk.chest?'📭':'🎁'}</span><small>หีบสัปดาห์ · ชนะ ${Math.min(wk.wins,WEEKLY.chestWins)}/${WEEKLY.chestWins}</small>
+  <div class="chest-bar" role="progressbar" aria-label="ชนะอีเวนต์สัปดาห์นี้" aria-valuemin="0" aria-valuemax="${WEEKLY.chestWins}" aria-valuenow="${Math.min(wk.wins,WEEKLY.chestWins)}"><i style="width:${Math.min(100,wk.wins/WEEKLY.chestWins*100)}%"></i></div><button type="button" class="event-open" data-event-chest ${editable&&wk.chestReady?'':'disabled'}>${wk.chest?'เปิดแล้ว':`เปิดหีบ ◉ ${WEEKLY.chestCoins}`}</button></div>`;
+ panel.querySelector('[data-event-play]').addEventListener('click',chooseEvent);
+ panel.querySelector('[data-event-chest]').addEventListener('click',claimChest);
+ return panel;
+}
 function renderStages(){
- const box=$('stagePicker');box.innerHTML='';
- STAGES.forEach((st,i)=>{const locked=i>meta.cleared,b=document.createElement('button');b.className='stage-node grade-'+st.grade;b.dataset.stage=String(i);
-  b.disabled=locked||!ready||actionPending||battle.state!=='ready';b.setAttribute('aria-pressed',String(i===battle.stageIndex));
-  b.innerHTML=`<b>${String(st.number).padStart(2,'0')}</b><span>${locked?'ยังล็อก':st.name}</span>${i<meta.cleared?'<i aria-label="ผ่านแล้ว">✓</i>':''}`;
-  b.title=locked?'ชนะด่านก่อนหน้าเพื่อปลดล็อก':`${st.name} · ฐานศัตรู ${st.enemyHP} · ไม่จำกัดเวลา · รางวัล ${st.rewardCoins} เหรียญ`;
-  b.addEventListener('click',()=>chooseStage(i));box.append(b)});
+ const box=$('stagePicker');box.innerHTML='';box.classList.add('world-map');
+ const chapter=mapChapter||(battle.stage.event?'event':battle.stage.chapter),editable=ready&&!actionPending&&battle.state==='ready';
+ const tabs=document.createElement('div');tabs.className='chapter-tabs';tabs.setAttribute('role','group');tabs.setAttribute('aria-label','เลือกบท');
+ for(const ch of CHAPTERS){const list=STAGES.filter(s=>s.chapter===ch.number),done=list.filter(s=>STAGES.indexOf(s)<meta.cleared).length,open=chapterOpen(ch.number),t=document.createElement('button');
+  t.type='button';t.className='chapter-tab';t.setAttribute('aria-pressed',String(ch.number===chapter));
+  t.innerHTML=`<span aria-hidden="true">${open?ch.icon:'🔒'}</span><b>บทที่ ${ch.number} · ${ch.name}</b><small>${open?`ผ่าน ${done}/${list.length}`:`ผ่านด่าน ${String(STAGES.findIndex(s=>s.chapter===ch.number)).padStart(2,'0')} ก่อน`}</small>`;
+  t.title=ch.text;t.addEventListener('click',()=>{if(!open){toast(`🔒 ${ch.name} · ผ่านบทก่อนหน้าให้ครบก่อน`);return}mapChapter=ch.number;levelKey='';sync()});tabs.append(t)}
+ // 1.17 weekly event tab (weekly.js)
+ const wk=window.SideviewWeekly.current(),evOpen=meta.cleared>=WEEKLY.unlock,et=document.createElement('button');
+ et.type='button';et.className='chapter-tab event-tab';et.setAttribute('aria-pressed',String(chapter==='event'));
+ et.innerHTML=`<span aria-hidden="true">${evOpen?'🎪':'🔒'}</span><b>อีเวนต์สัปดาห์</b><small>${evOpen?(wk.chestReady?'🎁 หีบพร้อมเปิด':`${wk.event.icon} ${wk.event.name}`):`ผ่านด่าน ${String(WEEKLY.unlock).padStart(2,'0')} ก่อน`}</small>${evOpen&&wk.chestReady?'<i class="daily-badge" aria-hidden="true">1</i>':''}`;
+ et.addEventListener('click',()=>{if(!evOpen){toast(`🔒 อีเวนต์สัปดาห์ · ผ่านด่าน ${String(WEEKLY.unlock).padStart(2,'0')} ก่อน`);return}mapChapter='event';levelKey='';sync()});tabs.append(et);
+ if(chapter==='event'){box.append(tabs,eventPanel(wk,editable));return}
+ const strip=document.createElement('div');strip.className='map-strip chapter-'+chapter;
+ const idx=STAGES.map((s,i)=>i).filter(i=>STAGES[i].chapter===chapter),pts=idx.map((_,k)=>MAP_SPOTS[k%MAP_SPOTS.length]);
+ const road=pts.map((p,k)=>k?`Q${(pts[k-1][0]+p[0])/2} ${k%2?p[1]-14:p[1]+14} ${p[0]} ${p[1]}`:`M${p[0]} ${p[1]}`).join(' ');
+ strip.innerHTML=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${MAP_ART[chapter]||MAP_ART[1]}<path d="${road}" fill="none" stroke="#8a6a46" stroke-width="5" stroke-linecap="round" opacity=".4"/><path d="${road}" fill="none" stroke="#fff8e4" stroke-width="2.6" stroke-dasharray="3 2.4" stroke-linecap="round"/></svg>`;
+ idx.forEach((i,k)=>{const st=STAGES[i],locked=i>meta.cleared,b=document.createElement('button');b.type='button';
+  b.className='stage-node map-node grade-'+st.grade+(st.boss?' boss':'')+(locked?' locked':'');b.dataset.stage=String(i);
+  b.style.left=pts[k][0]+'%';b.style.top=pts[k][1]+'%';
+  const here=i===battle.stageIndex&&!battle.stage.event;b.disabled=locked||!editable;b.setAttribute('aria-pressed',String(here));
+  b.innerHTML=`<b>${locked?'🔒':String(st.number).padStart(2,'0')}</b><span>${locked?'ยังล็อก':st.name}</span>${i<meta.cleared?'<i aria-label="ผ่านแล้ว">✓</i>':''}${st.boss?`<em aria-label="ด่านบอส">👑</em>`:''}${here?'<u aria-hidden="true">🚐</u>':''}`;
+  b.title=locked?'ชนะด่านก่อนหน้าเพื่อปลดล็อก':`${st.name} · ฐานศัตรู ${st.enemyHP} · ไม่จำกัดเวลา · รางวัล ${st.rewardCoins} เหรียญ${st.boss?` · บอส ${st.boss.name}`:''}`;
+  b.setAttribute('aria-label',locked?`ด่าน ${st.number} ยังล็อก`:`ด่าน ${st.number} ${st.name}${st.boss?' ด่านบอส':''}${i<meta.cleared?' ผ่านแล้ว':''}`);
+  b.addEventListener('click',()=>chooseStage(i));strip.append(b)});
+ box.append(tabs,strip);
 }
 function renderLevels(){
  const box=$('levelPanel');box.innerHTML='';
@@ -212,15 +275,16 @@ let countedWin=0;
 function markCleared(){
  if(battle.state!=='won'||!battle.claimed)return;
  if(countedWin!==battle.runId){countedWin=battle.runId;window.SideviewDaily.bump('wins')}
+ if(battle.stage.event){levelKey='';return}
  meta=readMeta();const next=battle.stageIndex+1;
- if(next>meta.cleared){meta.cleared=Math.min(STAGES.length,next);writeMeta();if(next<STAGES.length)toast(`ปลดล็อกด่าน ${String(next+1).padStart(2,'0')} · ${STAGES[next].name} แล้ว!`)}
+ if(next>meta.cleared){meta.cleared=Math.min(STAGES.length,next);writeMeta();if(next<STAGES.length){const ch=STAGES[next].chapter!==battle.stage.chapter&&CHAPTERS.find(c=>c.number===STAGES[next].chapter);toast(ch?`${ch.icon} ปลดล็อกบทที่ ${ch.number} · ${ch.name} แล้ว! ไปต่อที่แผนที่โลก`:`ปลดล็อกด่าน ${String(next+1).padStart(2,'0')} · ${STAGES[next].name} แล้ว!`)}}
  levelKey='';
 }
 function refreshMeta(){
- const key=[ready,actionPending,battle.state,battle.progress.coins,battle.stars.join(','),battle.levels.join(','),battle.stageIndex,meta.cleared].join('|');
+ const key=[ready,actionPending,battle.state,battle.progress.coins,battle.stars.join(','),battle.levels.join(','),battle.stageIndex,battle.stage.id,meta.cleared,JSON.stringify(window.SideviewWeekly.current())].join('|');
  if(key===levelKey)return;levelKey=key;renderStages();renderLevels();$('coinText').textContent=battle.progress.coins.toLocaleString('th-TH');if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();window.SideviewLobby.renderBook();
 }
-window.addEventListener('storage',event=>{if(event.key!==metaKey)return;meta=readMeta();if(battle.state==='ready'){battle.setLevels(allLevels());if(battle.stageIndex>meta.cleared)battle.setStage(meta.stage);stageHeading()}levelKey='';sync()});
+window.addEventListener('storage',event=>{if(event.key!==metaKey&&event.key!==worldKey)return;meta=readMeta();if(battle.state==='ready'){battle.setLevels(allLevels());if(battle.stageIndex>meta.cleared)battle.setStage(meta.stage);stageHeading()}levelKey='';sync()});
 let countedRun=0;
 function modal(){
  const state=battle.state,claimed=battle.claimed;
@@ -232,7 +296,7 @@ function modal(){
  $('preflightControls').hidden=state!=='ready';
  $('prepareBtn').hidden=!(state==='lost'||state==='won'&&claimed);
  leaveAsk=null;$('retryBtn').hidden=$('exitBtn').hidden=!(state==='paused'&&battle.canAbandon);$('retryBtn').textContent=`เริ่มด่านนี้ใหม่ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;$('exitBtn').textContent='ออกจากด่าน · กลับหน้าหลัก';
- if(state==='ready'){$('modalKicker').textContent=`ด่าน ${String(battle.stage.number).padStart(2,'0')} · ${battle.stage.name}`;$('modalTitle').textContent='พาเพื่อนกลับบ้าน';$('modalCopy').innerHTML='กางรถเป็นฐาน ส่งทีมไปช่วยเพื่อนที่ฐาน Mushroom<br>ชนะแล้วพับกลับเป็นรถ ไปรับเพื่อนกลับบ้าน';$('modalNote').textContent='เลือกทีมและโหมดได้ก่อนเริ่ม · ยังไม่เสียคุกกี้ดาว';$('actionBtn').textContent=`เริ่มภารกิจ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;return}
+ if(state==='ready'){$('modalKicker').textContent=battle.stage.event?`${battle.stage.icon} อีเวนต์สัปดาห์นี้ · ${battle.stage.name}`:`ด่าน ${String(battle.stage.number).padStart(2,'0')} · ${battle.stage.name}`;$('modalTitle').textContent='พาเพื่อนกลับบ้าน';$('modalCopy').innerHTML='กางรถเป็นฐาน ส่งทีมไปช่วยเพื่อนที่ฐาน Mushroom<br>ชนะแล้วพับกลับเป็นรถ ไปรับเพื่อนกลับบ้าน';$('modalNote').textContent='เลือกทีมและโหมดได้ก่อนเริ่ม · ยังไม่เสียคุกกี้ดาว';$('actionBtn').textContent=`เริ่มภารกิจ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;return}
  if(state==='running'||state==='advancing')$('pauseBtn').focus();
  if(state==='advancing')toast('ชนะแล้ว! รถฐานกำลังไปรับเพื่อน');
  if(state==='paused'){
@@ -240,7 +304,8 @@ function modal(){
  }else if(state==='won'){
    $('modalKicker').textContent='ภารกิจสำเร็จ';$('modalTitle').textContent=claimed?'กลับบ้านด้วยกัน!':'ช่วยเพื่อนได้แล้ว!';$('modalCopy').textContent=claimed?'รางวัลรอบนี้รับเรียบร้อยแล้ว':'รางวัลสาธิต รับได้หนึ่งครั้งต่อรอบที่ชนะ';
    const first=!battle.progress.rescued;
-   $('rewardArea').innerHTML=`<div class="reward-item"><span class="reward-icon">◉</span><b>เหรียญ ${battle.stage.rewardCoins}${(window.SideviewLive?.bonusCoins(battle.stage.rewardCoins)||0)?` +${window.SideviewLive.bonusCoins(battle.stage.rewardCoins)}`:''}</b><small>${(window.SideviewLive?.coinBonus()||0)?`โบนัสกิจกรรม +${window.SideviewLive.coinBonus()}%`:'ไอเทมจำลอง'}</small></div><div class="reward-item"><span class="reward-icon cookie-icon">★</span><b>คุกกี้ดาว ${CONFIG.rewardCookies}</b><small>พลังงานเข้าด่าน</small></div><div class="reward-item"><img src="${assetURL(UNITS[3].asset)}" alt="เพื่อน${UNITS[3].name}"><b>${claimed?'อยู่ในทีมแล้ว':first?`เพื่อนที่ช่วยได้ · ${UNITS[3].name}`:'เพื่อนอยู่ในทีมแล้ว'}</b><small>${claimed?'รับรางวัลแล้ว':first?'เพิ่มในคอลเลกชันครั้งแรก':'เล่นซ้ำไม่เพิ่มเพื่อนซ้ำ'}</small></div>`;
+   const ev=battle.stage.event,evCoins=ev?(claimed?battle.reward?.coins??0:window.SideviewWeekly.payFor(battle.stage)):0;
+   $('rewardArea').innerHTML=(ev?`<div class="reward-item"><span class="reward-icon">◉</span><b>เหรียญ ${evCoins}</b><small>${evCoins?'รางวัลอีเวนต์':'วันนี้รับครบแล้ว'} · หีบสัปดาห์ ${Math.min(WEEKLY.chestWins,window.SideviewWeekly.current().wins+(claimed?0:1))}/${WEEKLY.chestWins}</small></div>`:`<div class="reward-item"><span class="reward-icon">◉</span><b>เหรียญ ${battle.stage.rewardCoins}${(window.SideviewLive?.bonusCoins(battle.stage.rewardCoins)||0)?` +${window.SideviewLive.bonusCoins(battle.stage.rewardCoins)}`:''}</b><small>${(window.SideviewLive?.coinBonus()||0)?`โบนัสกิจกรรม +${window.SideviewLive.coinBonus()}%`:'ไอเทมจำลอง'}</small></div>`)+`<div class="reward-item"><span class="reward-icon cookie-icon">★</span><b>คุกกี้ดาว ${CONFIG.rewardCookies}</b><small>พลังงานเข้าด่าน</small></div><div class="reward-item"><img src="${assetURL(UNITS[3].asset)}" alt="เพื่อน${UNITS[3].name}"><b>${claimed?'อยู่ในทีมแล้ว':first?`เพื่อนที่ช่วยได้ · ${UNITS[3].name}`:'เพื่อนอยู่ในทีมแล้ว'}</b><small>${claimed?'รับรางวัลแล้ว':first?'เพิ่มในคอลเลกชันครั้งแรก':'เล่นซ้ำไม่เพิ่มเพื่อนซ้ำ'}</small></div>`;
    $('actionBtn').textContent='รับรางวัลและพาเพื่อนเข้าทีม →';if(!first&&!claimed)$('actionBtn').textContent='รับรางวัลรอบนี้ →';
    $('modalNote').textContent=`เหรียญสะสม: ${battle.progress.coins} · ${saves.writable?'บันทึกความคืบหน้าในเบราว์เซอร์นี้':'ความคืบหน้าอยู่เฉพาะหน้าที่เปิด'}`;
  }else if(state==='lost'){
@@ -284,18 +349,30 @@ function sync(){
 function round(x,y,w,h,r,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
 // Per-stage light over the painted background only; sprites stay untinted.
 const gradeStars=Array.from({length:70},(_,i)=>({x:(i*397)%1200,y:12+((i*211)%230),r:.6+((i*7)%10)/10,p:i*1.7}));
+const snowFlakes=Array.from({length:90},(_,i)=>({x:(i*331)%1200,y:(i*173)%520,r:1+((i*5)%9)/4,v:18+((i*13)%20),p:i*.9}));
 function stageGrade(W,H){
  const grade=battle.stage.grade;if(grade==='day')return;
  const look={golden:{top:'#ffd27a',bottom:'#ffb347',a:.5,mode:'soft-light',glow:.12},sunset:{top:'#ff8f5a',bottom:'#ffcf8a',a:.5,mode:'soft-light',shade:'#7a3f2a',sa:.12},
-  dusk:{top:'#5d4a9a',bottom:'#c58ab0',a:.42,mode:'multiply',glow:.35},night:{top:'#16224d',bottom:'#3b4a7a',a:.62,mode:'multiply',glow:.6,stars:true}}[grade];
+  dusk:{top:'#5d4a9a',bottom:'#c58ab0',a:.42,mode:'multiply',glow:.35},night:{top:'#16224d',bottom:'#3b4a7a',a:.62,mode:'multiply',glow:.6,stars:true},
+  // 1.17 chapter 2, หุบเขาหิมะ: frost whitens the meadow, snow falls, the last stage gets the northern lights.
+  mist:{top:'#dfe7ef',bottom:'#c4d2dc',a:.38,mode:'soft-light',tint:'#e4ecf3',ta:.32,frost:.35},snow:{top:'#c9dcef',bottom:'#eef4fa',a:.4,mode:'soft-light',tint:'#dfeaf6',ta:.26,frost:.55,snow:true},
+  ice:{top:'#8fbfe4',bottom:'#d8eefc',a:.45,mode:'soft-light',shade:'#a9cdea',sa:.3,tint:'#cfe6f8',ta:.22,frost:.45,snow:true},
+  crystal:{top:'#34467e',bottom:'#7d6cbc',a:.48,mode:'multiply',glow:.3,frost:.12,sparkle:true},
+  aurora:{top:'#13234c',bottom:'#3a5578',a:.62,mode:'multiply',glow:.45,stars:true,aurora:true,frost:.22,snow:true}}[grade];
+ if(!look)return;
  ctx.save();ctx.globalCompositeOperation=look.mode;ctx.globalAlpha=look.a;
  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,look.top);g.addColorStop(1,look.bottom);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
  if(look.shade){ctx.globalCompositeOperation='multiply';ctx.globalAlpha=look.sa;ctx.fillStyle=look.shade;ctx.fillRect(0,0,W,H)}
+ if(look.tint){ctx.globalCompositeOperation='source-over';ctx.globalAlpha=look.ta;ctx.fillStyle=look.tint;ctx.fillRect(0,0,W,H)}
  ctx.globalCompositeOperation='screen';
  if(look.stars){for(const s of gradeStars){ctx.globalAlpha=reduced?.7:.45+.4*Math.sin(animator.time*1.6+s.p);ctx.fillStyle='#fff7d6';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill()}
   ctx.globalAlpha=.85;const moon=ctx.createRadialGradient(930,70,4,930,70,60);moon.addColorStop(0,'#fffbe8');moon.addColorStop(.25,'#fff1c2');moon.addColorStop(1,'rgba(255,241,194,0)');ctx.fillStyle=moon;ctx.beginPath();ctx.arc(930,70,60,0,7);ctx.fill()}
+ if(look.aurora){for(let k=0;k<3;k++){ctx.globalAlpha=(reduced?.5:.4+.15*Math.sin(animator.time*.7+k*2));const band=ctx.createLinearGradient(0,30+k*30,0,150+k*30);band.addColorStop(0,'rgba(120,255,200,0)');band.addColorStop(.5,['#7dffc8','#8fd2ff','#c9a6ff'][k]);band.addColorStop(1,'rgba(150,120,255,0)');ctx.fillStyle=band;ctx.beginPath();ctx.moveTo(0,90+k*28);for(let x=0;x<=1200;x+=100)ctx.lineTo(x,70+k*28+28*Math.sin(x/170+k+(reduced?0:animator.time*.3)));ctx.lineTo(1200,190+k*28);ctx.lineTo(0,190+k*28);ctx.fill()}}
+ if(look.sparkle){for(const s of gradeStars.slice(0,30)){ctx.globalAlpha=reduced?.6:.3+.5*Math.abs(Math.sin(animator.time*2+s.p));ctx.fillStyle='#d6c8ff';ctx.beginPath();ctx.arc(s.x,200+s.y,s.r*1.4,0,7);ctx.fill()}}
  if(look.glow){for(const [x,y,r] of [[1062,318,90],[300,330,120]]){ctx.globalAlpha=look.glow;const lamp=ctx.createRadialGradient(x,y,2,x,y,r);lamp.addColorStop(0,'rgba(255,214,130,.9)');lamp.addColorStop(1,'rgba(255,214,130,0)');ctx.fillStyle=lamp;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill()}}
  ctx.restore();
+ if(look.frost){ctx.save();ctx.globalAlpha=look.frost;const f=ctx.createLinearGradient(0,300,0,H);f.addColorStop(0,'rgba(255,255,255,0)');f.addColorStop(.45,'#f4f9ff');f.addColorStop(1,'#ffffff');ctx.fillStyle=f;ctx.fillRect(0,300,W,H-300);ctx.restore()}
+ if(look.snow){ctx.save();ctx.fillStyle='#ffffff';for(const f of snowFlakes){const t=reduced?0:animator.time,y=(f.y+t*f.v)%H,x=(f.x+18*Math.sin(t*.8+f.p)+1200)%1200;ctx.globalAlpha=.75;ctx.beginPath();ctx.arc(x,y,f.r,0,7);ctx.fill()}ctx.restore()}
 }
 function draw(){
  const W=1200,H=520,compress=(canvas.clientWidth/canvas.clientHeight)/(W/H);ctx.clearRect(0,0,W,H);
@@ -347,6 +424,8 @@ function draw(){
   // Each lane reaches the same real door sill rather than a fixed fake rise.
   const y=naturalFoot+(vehicleDoor.y-naturalFoot)*boarding-(pose.hop||0)*height*compress;
   ctx.fillStyle=u.team?'#426c3b38':'#78513a34';ctx.beginPath();ctx.ellipse(u.x,y+4,33,7,0,0,7);ctx.fill();
+  // 1.17 chapter 2 bosses glow in their own colour; the sprite itself stays untinted.
+  if(u.aura&&u.phase!=='defeat'){ctx.save();ctx.globalAlpha=reduced?.45:.35+.15*Math.sin(animator.time*3);const cy=y-height*compress*.45,r=width*.75,glow=ctx.createRadialGradient(u.x,cy,4,u.x,cy,r);glow.addColorStop(0,u.aura);glow.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.ellipse(u.x,cy,r,r*compress*1.1,0,0,7);ctx.fill();ctx.restore()}
   const facing=u.facing===-1?-1:1;
   const alpha=(pose.phase==='defeat'?Math.max(0,1-pose.progress*pose.progress):1)*(1-boarding),drawn=character(asset,u.x,y,width,height,{...pose,facing},alpha);
   const record={id:u.id,team:Boolean(u.team),faction:u.team?'hero':'enemy',classId:u.classId||spec.classId,className:u.className||spec.className,kind:u.kind,asset,facing,sourceFacing:artCatalog[asset]?.sourceFacing||1,profile:artCatalog[asset]?.profile||null,phase:pose.phase,victoryAction:u.victoryAction||null,boardingProgress:boarding,spriteBounds:{x:u.x-width/2,y:y-height*compress,width,height:height*compress},foot:{x:u.x,y},alpha,hpBar:null,glyph:null,muzzle:drawn.rig?window.SideviewAnimation.getAttachment(drawn.rig,drawn.options,'muzzle'):null};
@@ -386,6 +465,7 @@ function fieldEvents(dt){
  blastFlash=Math.max(0,blastFlash-dt);itemFlash.t=Math.max(0,itemFlash.t-dt);
  for(const e of battle.events){if(e.seq<=seenEvent)continue;seenEvent=e.seq;
   if(e.type==='boss-arrive')toast(`👑 ${e.name} ออกมาแล้ว! ใช้ปืนใหญ่รถแคมป์ช่วย`);
+  if(e.type==='boss-call'&&bossCallToldRun!==battle.runId){bossCallToldRun=battle.runId;toast(`👑 ${e.name} เรียกลูกน้องมาช่วย! รีบล้มบอสก่อน`)}
   if(e.type==='base-blast')blastFlash=reduced?.25:.6;
   if(e.type==='item-use')itemFlash={t:reduced?.25:.6,id:e.item,xs:e.targetX||[]};
  }
@@ -422,7 +502,7 @@ window.SideviewDaily.mount({savedAction,toast,canClaim:()=>ready&&!actionPending
 window.SideviewLive.mount({savedAction,toast,canClaim:()=>ready&&!actionPending&&(battle.state==='ready'||battle.state==='lost'||(battle.state==='won'&&battle.claimed)),
  pay:(coins,cookies)=>{battle.progress.coins+=coins;if(cookies)bank.add(cookies);levelKey=''}});
 $('replayBtn').textContent=`เล่นอีกครั้ง · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;
-window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.16.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.16.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
+window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.17.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.17.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
 saves.subscribe(snapshot=>{const coins=battle.progress.coins,rescued=battle.progress.rescued;applySaved(snapshot);if(battle.state==='won'&&(coins!==battle.progress.coins||rescued!==battle.progress.rescued))renderedState='';energy();sync()});
 const importSafe=()=>ready&&!actionPending&&window.SideviewTransfer.canImport(battle.state,battle.claimed);
 window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refresh:sync,
@@ -446,7 +526,7 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
    try{
      // Meta and daily are written inside the save lock, the same way daily claims are.
      const receipt=await saves.mutate(draft=>{
-       try{storage.setItem(metaKey,JSON.stringify(nextMeta));if(daily)storage.setItem('little-rescue-daily-v1',JSON.stringify(daily));if(summon)storage.setItem(window.SideviewSummon.KEY,JSON.stringify(summon));if(heroBundle)storage.setItem(heroes.KEY,JSON.stringify(heroBundle))}catch{return false}
+       try{storage.setItem(metaKey,JSON.stringify(nextMeta));writeWorld(nextMeta);if(daily)storage.setItem('little-rescue-daily-v1',JSON.stringify(daily));if(summon)storage.setItem(window.SideviewSummon.KEY,JSON.stringify(summon));if(heroBundle)storage.setItem(heroes.KEY,JSON.stringify(heroBundle))}catch{return false}
        accepted=true;return {...draft,...clean,revision:draft.revision}},{requireDurable:true});
      if(!accepted||!receipt.committed)return false;
      applySaved(receipt.snapshot,true);battle.setRoster(rosterFor(receipt.snapshot.roster));
@@ -464,7 +544,7 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
        if(!stillClean())return false;
        const now=readMeta(),next=cleanMeta({...now,cleared:view.cleared,levels:Array.isArray(view.levels)?view.levels.slice(0,BASE):view.levels});
        if(!next||!Number.isSafeInteger(view.coins)||view.coins<0)return false;
-       try{storage.setItem(metaKey,JSON.stringify(next))}catch{return false}
+       try{storage.setItem(metaKey,JSON.stringify(next));writeWorld(next)}catch{return false}
        if(!window.SideviewSummon.adopt(view)||!heroes.adopt(view))return false;
        accepted=true;return {...draft,progress:{...draft.progress,coins:view.coins},revision:draft.revision}},{requireDurable:true});
      if(!accepted||!receipt.committed)return false;

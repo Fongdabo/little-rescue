@@ -61,7 +61,7 @@ const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const pct=(a,b)=>b?Math.round(a/b*100):null;
 const mins=s=>s==null?'–':s<60?`${s} วิ`:`${Math.floor(s/60)} นาที ${s%60?`${s%60} วิ`:''}`.trim();
 const bar=(v,cls='')=>v==null?'–':`<div class="bar ${cls}" title="${v}%"><i style="width:${Math.min(100,v)}%"></i></div>`;
-const stageName=i=>`ด่าน ${String(i+1).padStart(2,'0')}`;
+const stageName=i=>i>=40?`อีเวนต์ ${i-39}`:`ด่าน ${String(i+1).padStart(2,'0')}`;
 try{$('key').value=localStorage.getItem('little-rescue-stats-key')||''}catch{}
 $('f').addEventListener('submit',async e=>{
  e.preventDefault();$('msg').textContent='กำลังโหลด…';
