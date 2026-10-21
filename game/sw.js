@@ -1,6 +1,6 @@
 /* Buildless, scope-isolated PWA. No game save is stored in this cache. */
 'use strict';
-const BUILD_ID='pwa-1.14.0';
+const BUILD_ID='pwa-1.14.1';
 const SCOPE=self.registration.scope;
 const PREFIX='little-rescue-pwa:'+SCOPE+':';
 const CACHE_NAME=PREFIX+BUILD_ID;
@@ -35,6 +35,11 @@ const PRECACHE=/* PRECACHE_START */[
   "assets/heroes-v2/hero-guard-fongsabo.webp",
   "assets/heroes-v2/hero-helper-puipan.webp",
   "assets/heroes-v2/hero-mage-lukoak.webp",
+  "assets/heroes-v3/hero-agile-kangaroo.webp",
+  "assets/heroes-v3/hero-guard-bison.webp",
+  "assets/heroes-v3/hero-helper-wombat.webp",
+  "assets/heroes-v3/hero-mage-lemur.webp",
+  "assets/heroes-v3/hero-ranged-peacock.webp",
   "assets/heroes-v2/hero-ranged-maletdao.webp",
   "character-animation.js",
   "character-art.js",
@@ -90,6 +95,8 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v1130/index.html",
   "recover-v1140/",
   "recover-v1140/index.html",
+  "recover-v1141/",
+  "recover-v1141/index.html",
   "recover-v191/",
   "recover-v191/index.html",
   "recover-v1110/",

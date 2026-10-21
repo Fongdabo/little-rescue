@@ -301,8 +301,9 @@
 .book-card.sticker::after {
   content: 'สติกเกอร์';
   position: absolute;
-  top: 5px;
-  left: 6px;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
   padding: 0 5px;
   border-radius: 999px;
   background: #06c755;

@@ -155,7 +155,34 @@
   // Sticker heroes (2.0) append after the original five. Indices 0-4 never move:
   // the schema 2 save roster and meta-v1 levels only ever describe those five.
   // Each sticker hero names its classId; art and unlocks live outside the engine.
-  const STICKER_UNITS = [];
+  const STICKER_UNITS = [
+    {id: 'sticker-bison', name: 'ตุ้มต้อม', role: 'รับ', classId: 'guard', kind: 'guard', type: 'stone',
+      asset: 'heroes-v3/hero-guard-bison.webp', filename: 'heroes-v3/hero-guard-bison.webp', cost: 18, unlockCoins: 200,
+      story: 'ไบซันใจดีจากทุ่งกว้าง ยืนถือโล่ไม้บังเพื่อนทุกตัว',
+      hp: 190, damage: 13, interval: 1.2, speed: 34, range: 62, stopDistance: 60,
+      cooldown: 6, style: 'slash', color: '#e6a565'},
+    {id: 'sticker-kangaroo', name: 'เด้งดึ๋ง', role: 'ว่องไว', classId: 'agile', kind: 'scout', type: 'wind',
+      asset: 'heroes-v3/hero-agile-kangaroo.webp', filename: 'heroes-v3/hero-agile-kangaroo.webp', cost: 22, unlockCoins: 200,
+      story: 'จิงโจ้นักชกสายลม กระโดดเข้าไปชกแล้วเด้งกลับในพริบตา',
+      hp: 105, damage: 12, interval: 0.65, speed: 56, range: 160, stopDistance: 150,
+      cooldown: 6, style: 'dash', color: '#5fd0bf'},
+    {id: 'sticker-peacock', name: 'พู่กัน', role: 'ยิงไกล', classId: 'ranged', kind: 'ranger', type: 'star',
+      asset: 'heroes-v3/hero-ranged-peacock.webp', filename: 'heroes-v3/hero-ranged-peacock.webp', cost: 26, unlockCoins: 250,
+      story: 'นกยูงนักธนู ยิงขนแสงดาวได้ไกลกว่าใคร',
+      hp: 80, damage: 20, interval: 1.35, speed: 33, range: 330, stopDistance: 320,
+      cooldown: 7, style: 'bolt', color: '#5fb0f0'},
+    {id: 'sticker-wombat', name: 'หมอนุ่ม', role: 'ช่วยเหลือ', classId: 'helper', kind: 'healer', type: 'stone',
+      asset: 'heroes-v3/hero-helper-wombat.webp', filename: 'heroes-v3/hero-helper-wombat.webp', cost: 22, unlockCoins: 250,
+      story: 'วอมแบตหมอประจำทีม รินชาอุ่นๆ ให้เพื่อนหายเหนื่อย',
+      hp: 110, damage: 6, interval: 1.3, speed: 34, range: 220, stopDistance: 210,
+      cooldown: 8, style: 'heal', color: '#8fd3b0',
+      heal: 14, healInterval: 1.6, healRange: 210},
+    {id: 'sticker-lemur', name: 'ตาโต', role: 'เวท', classId: 'mage', kind: 'burst', type: 'wind',
+      asset: 'heroes-v3/hero-mage-lemur.webp', filename: 'heroes-v3/hero-mage-lemur.webp', cost: 30, unlockCoins: 300,
+      story: 'ลีเมอร์จอมเวทหางลาย เรียกลมหมุนจากคทาดวงดาว',
+      hp: 110, damage: 23, interval: 1.7, speed: 34, range: 250, stopDistance: 240,
+      cooldown: 10, style: 'burst', color: '#9a8ae8', splash: 85}
+  ];
   UNITS.push(...STICKER_UNITS);
   UNITS.forEach((unit, index) => Object.assign(unit,
     CLASSES.find(c => c.classId === unit.classId) || CLASSES[index], {sticker: index >= 5}));
