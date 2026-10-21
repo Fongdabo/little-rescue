@@ -90,6 +90,7 @@
     // 1.8: production upgrade (paid in flux, resets every battle) and the player's base blast button.
     fluxLevelMax: 5, fluxUpgradeCosts: [20, 30, 40, 50], fluxRegenStep: 0.3, fluxCapStep: 20,
     blastChargeTime: 22, blastDamage: 65, blastRange: 1200,
+    meteorTargets: 3, meteorDamage: 120, freezeTime: 4, gustPush: 140, gustDamage: 25, shieldTime: 8, shieldMultiplier: 0.5,
     baseCannonProjectileSpeed: 420, baseCannonMuzzleOffset: 120, baseCannonMuzzleY: 180,
     projectileTargetY: 390, eventHistoryLimit: 160,
     typeAdvantageMultiplier: 1.20, typeDisadvantageMultiplier: 0.85,
@@ -183,6 +184,13 @@
       enemyHP: 900, duration: 115, spawnInterval: 4.2, hpMul: 1.32, damageMul: 1.24, rewardCoins: 90,
       boss: {at: 60, baseRatio: 0.6, name: 'ราชาเห็ดยักษ์', hpMul: 4, damageMul: 2, scale: 1.6, speedMul: 0.7}}
   ];
+  // 1.9 battle items, like LINE Rangers' pre-battle items: free, each usable once per battle, chosen before it.
+  const ITEMS = [
+    {id: 'meteor', name: 'ฝนลูกสน', icon: '☄️', text: 'ลูกสนตกใส่ศัตรู 3 ตัวหน้าสุด แรง 120'},
+    {id: 'freeze', name: 'น้ำค้างแข็ง', icon: '❄️', text: 'ศัตรูทั้งสนามหยุดนิ่ง 4 วินาที'},
+    {id: 'gust', name: 'ลมหมุน', icon: '🌪️', text: 'ผลักศัตรูทั้งสนามถอยไป แรง 25'},
+    {id: 'shield', name: 'โล่ใบไม้', icon: '🛡️', text: 'ทีมเราและรถฐานโดนตีเบาลงครึ่งหนึ่ง 8 วินาที'}
+  ];
   // Hero level sample: +10% HP, damage and heal per level above 1.
   const LEVELS = {max: 10, step: 0.1, costBase: 20};
   const levelMultiplier = level => 1 + LEVELS.step * (clamp(Math.floor(level) || 1, 1, LEVELS.max) - 1);
@@ -255,6 +263,7 @@
       this.lastError = '';
       this.stageIndex = 0;
       this.levels = UNITS.map(() => 1);
+      this.equippedItems = ITEMS.map(item => item.id);
       this._resetFields();
     }
 
@@ -281,6 +290,9 @@
       this.fluxLevel = 1;
       this.blastCharge = 0;
       this.bossSpawned = false;
+      this.itemsUsed = [];
+      this.freezeRemaining = 0;
+      this.shieldRemaining = 0;
       this.homeHP = CONFIG.homeHP;
       this.enemyHP = this.stage.enemyHP;
       this.enemyMaxHP = this.stage.enemyHP;
@@ -319,7 +331,7 @@
         summonsByUnit: UNITS.map(() => 0),
         rewardsClaimed: 0, totalDamage: 0, healed: 0, spawnedEnemies: 0,
         blockedDamage: 0, projectilesFired: 0, projectileHits: 0,
-        fluxUpgrades: 0, blasts: 0, blastKills: 0, bossDefeated: false};
+        fluxUpgrades: 0, blasts: 0, blastKills: 0, bossDefeated: false, itemsUsed: 0, itemKills: 0};
       this.metrics.baseShots = 0;
       this.metrics.baseHits = 0;
       this.metrics.baseDamage = 0;
@@ -410,6 +422,55 @@
     get fluxUpgradeCost() {
       return this.fluxLevel >= CONFIG.fluxLevelMax ? null : CONFIG.fluxUpgradeCosts[this.fluxLevel - 1];
     }
+    setItems(ids) {
+      if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
+      if (!Array.isArray(ids) || ids.some(id => !ITEMS.some(item => item.id === id))) return false;
+      this.equippedItems = ITEMS.map(item => item.id).filter(id => ids.includes(id));
+      return true;
+    }
+
+    itemReady(id) {
+      return this.state === 'running' && this.equippedItems.includes(id) && !this.itemsUsed.includes(id);
+    }
+
+    useItem(id) {
+      if (!this.itemReady(id)) return false;
+      this.itemsUsed.push(id);
+      this.metrics.itemsUsed += 1;
+      const source = this.baseCannons[0];
+      const living = this.enemies.filter(enemy => enemy.hp > 0);
+      let targets = [];
+      if (id === 'meteor') {
+        targets = living.slice().sort((a, b) => a.x - b.x).slice(0, CONFIG.meteorTargets);
+        for (const enemy of targets) this._applyUnitDamage(enemy,
+          CONFIG.meteorDamage * (enemy.boss ? 0.5 : 1), source.id, null, 'item');
+      } else if (id === 'freeze') {
+        this.freezeRemaining = CONFIG.freezeTime;
+        targets = living;
+      } else if (id === 'gust') {
+        targets = living;
+        for (const enemy of targets) {
+          if (!enemy.boss) enemy.x = Math.min(CONFIG.enemyX - CONFIG.spawnInset, enemy.x + CONFIG.gustPush);
+          this._applyUnitDamage(enemy, CONFIG.gustDamage, source.id, null, 'item');
+        }
+      } else if (id === 'shield') {
+        this.shieldRemaining = CONFIG.shieldTime;
+      }
+      this._event('item-use', source, {sourceId: source.id, item: id, targets: targets.map(enemy => enemy.id),
+        targetX: targets.map(enemy => enemy.x)});
+      this.metrics.itemKills += this._sweepEnemies(targets);
+      return true;
+    }
+
+    // Enemies killed outside _step leave at once; _step only counts the enemies alive when its tick began.
+    _sweepEnemies(targets) {
+      const killed = targets.filter(enemy => enemy.hp <= 0);
+      this.kills += killed.length;
+      if (killed.some(enemy => enemy.boss)) this.metrics.bossDefeated = true;
+      this.enemies = this.enemies.filter(enemy => enemy.hp > 0);
+      return killed.length;
+    }
+
     get blastReady() { return this.blastCharge + 1e-9 >= CONFIG.blastChargeTime; }
 
     upgradeFlux() {
@@ -436,11 +497,7 @@
       for (const enemy of targets) {
         this._applyUnitDamage(enemy, CONFIG.blastDamage * (enemy.boss ? 0.5 : 1), source.id, null, 'blast');
       }
-      const killed = targets.filter(enemy => enemy.hp <= 0);
-      this.kills += killed.length;
-      this.metrics.blastKills += killed.length;
-      if (killed.some(enemy => enemy.boss)) this.metrics.bossDefeated = true;
-      this.enemies = this.enemies.filter(enemy => enemy.hp > 0);
+      this.metrics.blastKills += this._sweepEnemies(targets);
       return true;
     }
 
@@ -594,6 +651,7 @@
 
     _applyUnitDamage(target, rawDamage, sourceId, sourceType, cause, projectileId) {
       if (!target || target.hp <= 0 || rawDamage <= 0) return null;
+      if (target.facing === 1 && this.shieldRemaining > 1e-9) rawDamage *= CONFIG.shieldMultiplier;
       const multiplier = typeMultiplier(sourceType, target.type);
       const typedDamage = rawDamage * multiplier;
       const reducedDamage = target.kind === 'guard'
@@ -703,7 +761,8 @@
         projectile.flightProgress = 1;
         let result;
         if (projectile.targetBase) {
-          const amount = Math.min(this[baseKey], projectile.damage);
+          const shielded = !projectile.friendly && this.shieldRemaining > 1e-9;
+          const amount = Math.min(this[baseKey], projectile.damage * (shielded ? CONFIG.shieldMultiplier : 1));
           this[baseKey] = Math.max(0, this[baseKey] - amount);
           target.hp = this[baseKey];
           result = {amount, multiplier: 1, blocked: 0};
@@ -758,6 +817,8 @@
       this.remaining = Math.max(0, this.stage.duration - this.time);
       this.flux = Math.min(this.fluxCap, this.flux + this.fluxRate * dt);
       this.blastCharge = Math.min(CONFIG.blastChargeTime, this.blastCharge + dt);
+      this.freezeRemaining = Math.max(0, this.freezeRemaining - dt);
+      this.shieldRemaining = Math.max(0, this.shieldRemaining - dt);
       for (let i = 0; i < this.cooldowns.length; i++) this.cooldowns[i] = Math.max(0, this.cooldowns[i] - dt);
       this.effects = this.effects.filter(effect => (effect.ttl -= dt) > 0);
       while (this.time + 1e-9 >= this._nextEnemy) {
@@ -802,6 +863,8 @@
         if (unit.kind === 'healer') {
           unit.healCooldown = Math.max(0, unit.healCooldown - dt);
         }
+        // น้ำค้างแข็ง: frozen enemies neither move nor attack; their timers above still run.
+        if (!friendly && this.freezeRemaining > 1e-9) { unit.movement = 'hold'; return; }
         const target = this._frontOpponent(opponents, unit.facing) || {id: friendly ? 'enemy-base' : 'home-base',
           x: friendly ? CONFIG.enemyX : CONFIG.homeX, base: true};
         const distance = Math.abs(target.x - unit.x);
@@ -900,7 +963,8 @@
         hit.source.id, hit.source.type, 'melee');
       for (const hit of baseDamage) {
         const key = hit.friendly ? 'enemyHP' : 'homeHP';
-        const amount = Math.min(this[key], hit.amount);
+        const raw = !hit.friendly && this.shieldRemaining > 1e-9 ? hit.amount * CONFIG.shieldMultiplier : hit.amount;
+        const amount = Math.min(this[key], raw);
         this[key] = Math.max(0, this[key] - amount);
         if (amount > 0) {
           const base = {id: hit.target.id, unitId: hit.target.id, kind: 'base', index: -1,
@@ -952,6 +1016,6 @@
     }
   }
 
-  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, LEVELS,
+  return {CONFIG, TYPES, typeMultiplier, CLASSES, UNITS, ENEMIES, STAGES, LEVELS, ITEMS,
     levelMultiplier, levelCost, EnergyBank, Battle};
 }));

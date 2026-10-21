@@ -1,7 +1,7 @@
 /* Local prototype UI. Rendering uses copied, replaceable assets. No network APIs. */
 'use strict';
 (() => {
-const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,LEVELS,levelCost,EnergyBank,Battle}=window.Sideview;
+const {CONFIG,UNITS,ENEMIES,CLASSES,STAGES,LEVELS,ITEMS,levelCost,levelMultiplier,EnergyBank,Battle}=window.Sideview;
 const $=id=>document.getElementById(id);
 const storageKey='little-rescue-sideview-save-v2';
 let storage=null;try{storage=window.localStorage}catch{}
@@ -29,7 +29,7 @@ const pwaAssetMap={"background.png":"background.webp","heroes-v2/hero-guard-fong
 const assetURL=file=>window.EMBEDDED_ASSETS?.[file]||'assets/'+(pwaAssetMap[file]||file);
 const canvas=$('game'),ctx=canvas.getContext('2d');
 const images={},cards=[];
-let fluxRateText='',seenEvent=0,seenRun=-1,blastFlash=0;
+let fluxRateText='',seenEvent=0,seenRun=-1,blastFlash=0,itemFlash={t:0,id:'',xs:[]};
 let ready=false,last=performance.now(),toastUntil=0,renderedState='',lastRun=0,lastClaim=false,actionPending=false,appliedRevision=initial.revision;
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
 let reduced=motionPreference.matches;
@@ -72,6 +72,21 @@ function summon(index){if(!battle.summon(index)&&battle.state==='running')toast(
 function upgradeFlux(){if(battle.state!=='running')return;const cost=battle.fluxUpgradeCost;if(battle.upgradeFlux())toast(`ผลิตละอองเร็วขึ้น · ขั้น ${battle.fluxLevel}`);else toast(cost===null?'อัปการผลิตครบทุกขั้นแล้ว':`ต้องใช้ละอองใบไม้ ${cost}`);sync()}
 function fireBlast(){if(battle.state!=='running')return;if(!battle.fireBlast())toast('ปืนใหญ่กำลังชาร์จ');sync()}
 $('fluxUpBtn').addEventListener('click',upgradeFlux);$('blastBtn').addEventListener('click',fireBlast);
+// 1.9 battle items: one round button each, usable once per battle; which ones go along is a per-device UI choice.
+const itemKey='little-rescue-ui-items';
+try{const ids=JSON.parse(localStorage.getItem(itemKey)||'null');if(Array.isArray(ids))battle.setItems(ids)}catch{}
+const itemKeys={meteor:'Q',freeze:'W',gust:'E',shield:'R'};
+for(const item of ITEMS){const b=document.createElement('button');b.type='button';b.className='skill-orb item';b.dataset.item=item.id;b.title=`${item.name}: ${item.text} (${itemKeys[item.id]})`;b.setAttribute('aria-label',item.name);
+ b.innerHTML=`<span aria-hidden="true">${item.icon}</span><small>${item.name}</small>`;b.addEventListener('click',()=>useItem(item.id));$('skillRow').append(b)}
+function useItem(id){if(battle.state!=='running')return;const item=ITEMS.find(x=>x.id===id);if(battle.useItem(id))toast(`${item.icon} ${item.name}!`);else if(!battle.equippedItems.includes(id))toast('ไม่ได้เลือกไอเทมนี้ก่อนเริ่มด่าน');else toast('ใช้ไอเทมนี้ไปแล้วในด่านนี้');sync()}
+function saveItems(ids){if(!battle.setItems(ids))return false;try{localStorage.setItem(itemKey,JSON.stringify(battle.equippedItems))}catch{}sync();return true}
+let speed=1;
+$('speedBtn').addEventListener('click',()=>{speed=speed===1?2:1;sync()});
+$('fieldAutoBtn').addEventListener('click',()=>{setMode(battle.mode==='auto'?'manual':'auto');sync()});
+// The skill row and speed buttons sit just under the base HP cards, whatever size those are on this screen.
+function placeHud(){const home=document.querySelector('.base-hud.home'),enemy=document.querySelector('.base-hud.enemy');if(!home||!enemy)return;
+ $('skillRow').style.top=`${home.offsetTop+home.offsetHeight+6}px`;$('speedCol').style.top=`${enemy.offsetTop+enemy.offsetHeight+6}px`}
+addEventListener('resize',placeHud);
 UNITS.forEach((u,index)=>{
  const btn=document.createElement('button');btn.className='unit-card';btn.disabled=true;btn.dataset.unit=String(index);btn.setAttribute('aria-label',`เรียก ${u.name} ใช้ละอองใบไม้ ${u.cost}`);
  btn.innerHTML=`<span class="unit-key">${index+1}</span><span class="cooldown"></span><img src="${assetURL(u.asset)}" alt=""><span class="unit-name">${u.name}</span><span class="unit-role">${u.role||'เพื่อนร่วมทีม'}</span><span class="unit-cost">❧ ${u.cost}</span><span class="availability">พร้อมเมื่อเริ่มด่าน</span>`;
@@ -110,6 +125,7 @@ document.addEventListener('keydown',event=>{
  if(/^[1-5]$/.test(event.key)){event.preventDefault();summon(Number(event.key)-1)}
  if(event.key==='u'||event.key==='U'){event.preventDefault();upgradeFlux()}
  if(event.key==='b'||event.key==='B'){event.preventDefault();fireBlast()}
+ for(const [id,key] of Object.entries(itemKeys))if(event.key.toUpperCase()===key){event.preventDefault();useItem(id)}
 });
 document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden&&['running','advancing'].includes(battle.state)){battle.pause();sync()}});
 function stageHeading(){const st=battle.stage;document.querySelector('.level-number').textContent=String(st.number).padStart(2,'0');document.querySelector('.level-heading h2').textContent=st.name;document.title=`${st.name} • ภารกิจช่วยเพื่อน`;$('battlefield').dataset.grade=st.grade}
@@ -154,7 +170,7 @@ function modal(){
  const state=battle.state,claimed=battle.claimed;
  if(renderedState===state&&lastRun===battle.runId&&lastClaim===claimed)return;
  if(['won','lost'].includes(state)&&countedRun!==battle.runId){countedRun=battle.runId;if(battle.metrics.summons)window.SideviewDaily.bump('summons',battle.metrics.summons)}
- window.SideviewDaily.refresh();
+ window.SideviewDaily.refresh();window.SideviewLobby.refresh();
  renderedState=state;lastRun=battle.runId;lastClaim=claimed;
  $('overlay').hidden=['running','advancing'].includes(state);$('modal').classList.toggle('won',state==='won');$('rewardArea').hidden=state!=='won';$('replayBtn').hidden=!(state==='won'&&claimed);$('actionBtn').hidden=state==='won'&&claimed;
  $('preflightControls').hidden=state!=='ready';
@@ -183,11 +199,14 @@ function sync(){
  $('fluxText').textContent=`${Math.floor(battle.flux)} / ${battle.fluxCap}`;$('fluxFill').style.width=`${battle.flux/battle.fluxCap*100}%`;
  const rate=`ฟื้น +${+battle.fluxRate.toFixed(1)} ต่อวินาที`;if(fluxRateText!==rate){fluxRateText=rate;document.querySelector('.flux-panel small').textContent=rate}
  const live=battle.state==='running',upCost=battle.fluxUpgradeCost,charge=Math.min(1,battle.blastCharge/CONFIG.blastChargeTime);
- $('fieldSkills').hidden=!['running','paused'].includes(battle.state);
- $('fluxUpBtn').disabled=!live||upCost===null||battle.flux<upCost;$('fluxUpBtn').querySelector('b').textContent=`ขั้น ${battle.fluxLevel}`;
- $('fluxUpBtn').querySelector('small').textContent=upCost===null?'สูงสุด':`❧ ${upCost}`;
+ const inBattle=['running','paused'].includes(battle.state);
+ if($('skillRow').hidden===inBattle){$('skillRow').hidden=!inBattle;$('speedCol').hidden=!inBattle;$('fluxUpBtn').hidden=!inBattle;if(inBattle)placeHud()}
+ $('fluxUpBtn').disabled=!live||upCost===null||battle.flux<upCost;$('fluxUpBtn').querySelector('b').textContent=`Lv.${battle.fluxLevel}`;
+ $('fluxUpBtn').querySelector('small').textContent=upCost===null?'สูงสุด':`⬆ ❧ ${upCost}`;
  $('blastBtn').disabled=!live||!battle.blastReady;$('blastBtn').classList.toggle('ready',battle.blastReady);
- $('blastBtn').style.setProperty('--charge',String(charge));$('blastBtn').querySelector('small').textContent=battle.blastReady?'พร้อมยิง!':`${Math.round(charge*100)}%`;
+ $('blastBtn').style.setProperty('--charge',String(charge));$('blastBtn').querySelector('small').textContent=battle.blastReady?'ยิง!':`${Math.round(charge*100)}%`;
+ document.querySelectorAll('.skill-orb.item').forEach(b=>{const id=b.dataset.item,on=battle.equippedItems.includes(id),used=battle.itemsUsed.includes(id);b.hidden=!on;b.disabled=!live||used;b.classList.toggle('used',used)});
+ $('speedBtn').setAttribute('aria-pressed',String(speed===2));$('fieldAutoBtn').setAttribute('aria-pressed',String(battle.mode==='auto'));
  const t=Math.max(0,Math.ceil(battle.remaining));$('timeText').textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
  $('pauseBtn').disabled=!['running','paused','advancing'].includes(battle.state);$('pauseBtn').textContent=battle.state==='paused'?'▶':'Ⅱ';$('pauseBtn').setAttribute('aria-label',battle.state==='paused'?'เล่นต่อ':'หยุดพัก');
  $('teamCount').textContent=`${battle.progress.rescued?1:0} / 1`;
@@ -289,19 +308,26 @@ function draw(){
   for(const [width,alpha,color] of [[46,.28,'#ffb84d'],[22,.55,'#ffd977'],[7,.95,'#fffbe8']]){ctx.globalAlpha=alpha*a;ctx.strokeStyle=color;ctx.lineWidth=width*(0.7+0.3*a);ctx.beginPath();ctx.moveTo(vehicleMuzzle.x,vehicleMuzzle.y);ctx.lineTo(W-10,endY);ctx.stroke()}
   for(const e of battle.enemies){const y=foot-45*compress*(e.scale||1),r=(18+46*grow)*(e.scale||1);ctx.globalAlpha=.7*a;const burst=ctx.createRadialGradient(e.x,y,2,e.x,y,r);burst.addColorStop(0,'#fffbe8');burst.addColorStop(.5,'#ffcf6a');burst.addColorStop(1,'rgba(255,170,80,0)');ctx.fillStyle=burst;ctx.beginPath();ctx.arc(e.x,y,r,0,7);ctx.fill()}
   ctx.globalAlpha=.12*a;ctx.fillStyle='#fff3c4';ctx.fillRect(0,0,W,H);ctx.restore()}
+ if(itemFlash.t>0){const a=Math.min(1,itemFlash.t/.5),grow=1-a;ctx.save();ctx.globalCompositeOperation='screen';
+  if(itemFlash.id==='meteor')for(const x of itemFlash.xs){const e={x};const y=foot-50*compress;ctx.globalAlpha=a;ctx.fillStyle='#8a5a2b';ctx.beginPath();ctx.arc(e.x-60*a,y-160*a,14,0,7);ctx.fill();const r=20+60*grow;const g=ctx.createRadialGradient(e.x,y,2,e.x,y,r);g.addColorStop(0,'#fff1c0');g.addColorStop(.6,'#ff9d4d');g.addColorStop(1,'rgba(255,120,60,0)');ctx.globalAlpha=.8*grow;ctx.fillStyle=g;ctx.beginPath();ctx.arc(e.x,y,r,0,7);ctx.fill()}
+  if(itemFlash.id==='gust'){ctx.strokeStyle='#e9fbff';ctx.lineWidth=5;for(let k=0;k<6;k++){ctx.globalAlpha=.7*a;const x=300+grow*600+k*60,y=foot-40*compress-k*22*compress;ctx.beginPath();ctx.arc(x,y,26+k*4,0,4.6);ctx.stroke()}}
+  ctx.restore()}
+ if(battle.freezeRemaining>0){ctx.save();for(const e of battle.enemies){const y=foot-48*compress*(e.scale||1),r=46*(e.scale||1);ctx.globalAlpha=.55;const g=ctx.createRadialGradient(e.x,y,4,e.x,y,r);g.addColorStop(0,'rgba(235,250,255,.5)');g.addColorStop(1,'rgba(110,195,255,.55)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(e.x,y,r,0,7);ctx.fill();ctx.globalAlpha=.95;ctx.strokeStyle='#e8f8ff';ctx.lineWidth=3;ctx.stroke();ctx.font='bold 20px sans-serif';ctx.fillStyle='#ffffff';ctx.fillText('❄',e.x+r*.4,y-r*.6)}ctx.restore()}
+ if(battle.shieldRemaining>0){ctx.save();ctx.strokeStyle='#6fd35a';ctx.lineWidth=4;for(const u of battle.allies){const y=foot-48*compress;ctx.globalAlpha=.6+.25*Math.sin(animator.time*6);ctx.beginPath();ctx.ellipse(u.x,y,40,52*compress,0,0,7);ctx.stroke();ctx.globalAlpha=.18;ctx.fillStyle='#bfeaa3';ctx.fill()}ctx.restore()}
  if(doorOpen)doorway(true);
  if(battle.state==='ready'){for(const [spec,x,facing]of [[UNITS[0],220,1],[ENEMIES[0],965,-1]]){const ratio=rigs.get(spec.asset)?.aspect||1;character(spec.asset,x,428,Math.min(155,115*ratio),Math.min(155,115*ratio)/ratio,{facing})}}
 
 }
 function fieldEvents(dt){
- if(seenRun!==battle.runId){seenRun=battle.runId;seenEvent=0;blastFlash=0}
- blastFlash=Math.max(0,blastFlash-dt);
+ if(seenRun!==battle.runId){seenRun=battle.runId;seenEvent=0;blastFlash=0;itemFlash.t=0}
+ blastFlash=Math.max(0,blastFlash-dt);itemFlash.t=Math.max(0,itemFlash.t-dt);
  for(const e of battle.events){if(e.seq<=seenEvent)continue;seenEvent=e.seq;
   if(e.type==='boss-arrive')toast(`👑 ${e.name} ออกมาแล้ว! ใช้ปืนใหญ่รถแคมป์ช่วย`);
   if(e.type==='base-blast')blastFlash=reduced?.25:.6;
+  if(e.type==='item-use')itemFlash={t:reduced?.25:.6,id:e.item,xs:e.targetX||[]};
  }
 }
-function frame(now){const started=performance.now(),dt=Math.min(.1,Math.max(0,(now-last)/1000));last=now;if(ready)battle.update(dt);fieldEvents(dt);animator.update(battle,dt);vfx.update(battle,dt);sync();draw();const cost=performance.now()-started;frameCosts.push(cost);if(frameCosts.length>600)frameCosts.shift();if(now>toastUntil)$('toast').classList.remove('show');requestAnimationFrame(frame)}
+function frame(now){const started=performance.now(),dt=Math.min(.1,Math.max(0,(now-last)/1000));last=now;if(ready)battle.update(dt*speed);fieldEvents(dt*speed);animator.update(battle,dt);vfx.update(battle,dt);sync();draw();const cost=performance.now()-started;frameCosts.push(cost);if(frameCosts.length>600)frameCosts.shift();if(now>toastUntil)$('toast').classList.remove('show');requestAnimationFrame(frame)}
 const assetFiles=[...new Set(['background.png','background-clean-left-v1.png','base-vehicle-large-v1.svg','base-deployed-large-v1.svg','cannon-support-v1.svg',...UNITS.map(u=>u.asset),...ENEMIES.map(u=>u.asset)])];
 function composeSceneBackground(){
  const original=images.background,patch=images['background-clean-left-v1.png'];
@@ -319,10 +345,11 @@ storageNote();
 // Read-only diagnostic snapshots for independent QA; no force-win/debug buttons.
 $('balanceNote').textContent=`ตัวเลขทั้งหมดเป็นค่าตัวอย่างที่แก้ได้ใน engine.js: คุกกี้ดาวสูงสุด ${CONFIG.energyMax} / ค่าเข้า ${CONFIG.entryCost} / ฟื้น 1 ทุก ${CONFIG.refillMs/60000} นาที / เวลา ${CONFIG.duration} วินาที / ละอองใบไม้เริ่ม ${CONFIG.fluxInitial} สูงสุด ${CONFIG.fluxMax} ฟื้น +${CONFIG.fluxRegen} ต่อวินาที / รางวัลเหรียญ ${CONFIG.rewardCoins} และคุกกี้ดาว ${CONFIG.rewardCookies} รับได้หนึ่งครั้งต่อรอบที่ชนะ การพัก สลับโหมด และกดเริ่มซ้ำไม่เสียเพิ่ม`;
 document.querySelector('.energy-copy small').textContent=`ใช้เข้าด่านเท่านั้น · ครั้งละ ${CONFIG.entryCost} ชิ้น`;
+window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,assetURL,toast,saveItems,canEdit:()=>ready&&!actionPending});
 window.SideviewDaily.mount({savedAction,toast,canClaim:()=>ready&&!actionPending&&(battle.state==='ready'||battle.state==='lost'||(battle.state==='won'&&battle.claimed)),
  pay:(coins,cookies)=>{battle.progress.coins+=coins;if(cookies)bank.add(cookies);levelKey=''}});
 $('replayBtn').textContent=`เล่นอีกครั้ง · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;
-window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.8.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.8.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
+window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.9.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.9.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
 saves.subscribe(snapshot=>{const coins=battle.progress.coins,rescued=battle.progress.rescued;applySaved(snapshot);if(battle.state==='won'&&(coins!==battle.progress.coins||rescued!==battle.progress.rescued))renderedState='';energy();sync()});
 const importSafe=()=>ready&&!actionPending&&window.SideviewTransfer.canImport(battle.state,battle.claimed);
 window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refresh:sync,

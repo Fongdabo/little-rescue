@@ -1,0 +1,270 @@
+/* 1.9 lobby (lobby.js): bottom tab bar on the start screen, battle item cards, hero book.
+   The tabs only hide start-screen children; children: 1 modes, 2 label, 3 stages, 4 label, 5 roster, 6 type rule,
+   7 label, 8 levels, 9 hero book. */
+#preflightControls[data-tab]:not([hidden]) {
+  display: block;
+}
+
+#preflightControls[data-tab="adventure"] > :nth-child(n+4),
+#preflightControls[data-tab="team"] > :not(:nth-child(4), :nth-child(5), :nth-child(6)),
+#preflightControls[data-tab="upgrade"] > :not(:nth-child(7), :nth-child(8)),
+#preflightControls[data-tab="book"] > :not(.hero-book) {
+  display: none !important;
+}
+
+#preflightControls > * + * {
+  margin-top: 8px;
+}
+
+.lobby-tabs {
+  position: sticky;
+  bottom: -1px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+  margin: 10px -6px -6px;
+  padding: 6px 4px 4px;
+  border-radius: 14px;
+  background: linear-gradient(#8a5f3d, #6b4529);
+  box-shadow: inset 0 2px 0 #b07c52, 0 -2px 8px #4a301a33;
+}
+
+.lobby-tabs[hidden] {
+  display: none;
+}
+
+.lobby-tabs button {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 0;
+  padding: 5px 1px 4px;
+  border: 2px solid #4f321d;
+  border-radius: 10px;
+  background: linear-gradient(#a2724b, #7d5333);
+  box-shadow: inset 0 1px 0 #c79a6e;
+  color: #fff4dc;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lobby-tabs button span {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.lobby-tabs button small {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 #4f321d;
+}
+
+.lobby-tabs button[aria-pressed="true"] {
+  background: linear-gradient(#ffd77a, #e9a948);
+  border-color: #8a5a1f;
+  color: #4f321d;
+}
+
+.lobby-tabs button[aria-pressed="true"] small {
+  text-shadow: none;
+}
+
+.lobby-tabs button.soon {
+  opacity: .62;
+}
+
+.lobby-tabs button em {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #5f8d55;
+  color: #fff;
+  font-size: 7.5px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.lobby-tabs .daily-badge {
+  top: -6px;
+  right: -4px;
+  font-style: normal;
+}
+
+/* battle items before the start: like LINE Rangers' four item cards, all free here */
+.item-panel[hidden] {
+  display: none;
+}
+
+.item-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.item-card {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  min-height: 0;
+  padding: 7px 4px 6px;
+  border: 2px solid #b9d7e4;
+  border-radius: 12px;
+  background: linear-gradient(#f2fbff, #d8eef7);
+  color: #3f5a63;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.item-card[aria-pressed="false"] {
+  filter: grayscale(.8);
+  opacity: .7;
+}
+
+.item-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #bfe0ee);
+  font-size: 22px;
+}
+
+.item-card b {
+  font-size: 12px;
+}
+
+.item-card small {
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: #6a8189;
+}
+
+.item-card i {
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ffd77a;
+  color: #5a3a12;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.item-card[aria-pressed="false"] i {
+  background: #ddd;
+  color: #666;
+}
+
+/* hero book */
+.hero-book {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 6px;
+}
+
+.book-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 8px 6px 6px;
+  border: 2px solid #e1d1ae;
+  border-radius: 12px;
+  background: linear-gradient(#fffaf0, #f3e7c8);
+  text-align: center;
+}
+
+.book-card.type-stone { border-color: #d3ad83; }
+.book-card.type-star { border-color: #b8b0e2; }
+.book-card.type-wind { border-color: #9ccfc6; }
+.book-card.boss { border-color: #c96b4e; background: linear-gradient(#fff3ea, #f6d5c3); }
+
+.book-card img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.book-boss {
+  font-size: 40px;
+  line-height: 56px;
+}
+
+.book-card b {
+  font-size: 13px;
+}
+
+.book-card small {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.book-lv {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: 10px;
+}
+
+.book-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 6px;
+  width: 100%;
+  margin: 4px 0 0;
+  font-size: 10px;
+  text-align: left;
+}
+
+.book-card dt { color: var(--muted); }
+.book-card dd { margin: 0; text-align: right; font-weight: 700; }
+
+@media (max-width: 650px), (max-height: 520px) {
+  .lobby-tabs { gap: 2px; padding: 5px 3px 3px; }
+  .lobby-tabs button { padding: 4px 0 3px; border-radius: 8px; }
+  .lobby-tabs button span { font-size: 16px; }
+  .lobby-tabs button small { font-size: 8.5px; }
+  .item-cards { gap: 4px; }
+  .item-card { padding: 5px 2px; }
+  .item-icon { width: 32px; height: 32px; font-size: 18px; }
+  .item-card b { font-size: 10.5px; }
+  .item-card small { font-size: 8px; }
+}
+
+/* phone held sideways: the start screen is short, so the lobby drops the story line and item descriptions */
+@media (max-width: 1000px) and (max-height: 520px) and (orientation: landscape) {
+  .modal:has(.lobby-tabs:not([hidden])) #modalCopy,
+  .modal:has(.lobby-tabs:not([hidden])) #modalTitle,
+  .item-card small {
+    display: none;
+  }
+
+  .item-card {
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    justify-items: start;
+    gap: 4px;
+  }
+
+  .item-card i {
+    margin: 0;
+    padding: 1px 5px;
+  }
+}
