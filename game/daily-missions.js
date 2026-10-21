@@ -62,7 +62,7 @@
   if(!button)return;
   const n=claimable(read());
   for(const el of [button,modalButton]){if(!el)continue;el.querySelector('.daily-badge').textContent=n?String(n):'';el.classList.toggle('has-reward',n>0);
-   el.setAttribute('aria-label',n?`ภารกิจรายวัน มีรางวัลรอรับ ${n} อย่าง`:'ภารกิจรายวัน')}
+   el.title=n?`ภารกิจรายวัน มีรางวัลรอรับ ${n} อย่าง`:'ภารกิจรายวัน'}
   if(dialog?.open)render();
  }
  async function claim(id){
@@ -80,11 +80,12 @@
   if(ok&&reward)app.toast(`รับ ${reward.coins} เหรียญ${reward.cookies?` และคุกกี้ดาว ${reward.cookies} ชิ้น`:''} แล้ว!`);
   refresh();render();
  }
+ function open(){render();if(dialog?.showModal)dialog.showModal()}
  function mount(bridge){
   app=bridge;
   button=document.createElement('button');button.type='button';button.className='daily-chip';
   button.innerHTML='<span aria-hidden="true">📋</span><span class="daily-text">ภารกิจ</span><span class="daily-badge" aria-hidden="true"></span>';
-  button.title='ภารกิจรายวันและรางวัลเข้าเกม 7 วัน';
+  button.title='ภารกิจรายวันและรางวัลเข้าเกม 7 วัน';button.setAttribute('aria-label','ภารกิจรายวัน');
   dialog=document.createElement('dialog');dialog.className='daily-dialog';dialog.setAttribute('aria-labelledby','dailyTitle');
   dialog.innerHTML=`<h2 id="dailyTitle">ภารกิจรายวัน</h2>
    <p class="daily-sub">เข้าเกมทุกวัน รับรางวัลต่อเนื่อง 7 วัน</p><ol class="daily-login"></ol>
@@ -92,17 +93,14 @@
    <h3>ภารกิจวันนี้</h3><ul class="daily-list"></ul><p class="daily-note"></p>
    <form method="dialog"><button class="secondary" value="close">ปิด</button></form>`;
   dialog.addEventListener('click',event=>{const id=event.target.closest('[data-claim]')?.dataset.claim;if(id)claim(id)});
-  // The start and result screens cover the header, so they carry their own way in.
-  modalButton=document.createElement('button');modalButton.type='button';modalButton.className='daily-open';
-  modalButton.innerHTML='📋 ภารกิจ<span class="daily-badge" aria-hidden="true"></span>';
-  const open=()=>{render();if(dialog.showModal)dialog.showModal()};
-  button.addEventListener('click',open);modalButton.addEventListener('click',open);
-  document.getElementById('modal')?.prepend(modalButton);
+  // The start screen covers the header, so its lobby tab bar (lobby.js) carries the same badge.
+  modalButton=document.querySelector('.lobby-tabs [data-tab="missions"]');
+  button.addEventListener('click',open);
   window.addEventListener('storage',event=>{if(event.key===KEY)refresh()});
   // The day can roll over while the game stays open.
   setInterval(refresh,30000);
   const head=document.querySelector('.masthead');if(head){const install=head.querySelector('.install-chip');install?head.insertBefore(button,install):head.append(button)}
   document.body.append(dialog);refresh();
  }
- window.SideviewDaily={KEY,MISSIONS,LOGIN,read,loginDay,claimable,bump,mount,refresh,render,claim};
+ window.SideviewDaily={KEY,MISSIONS,LOGIN,read,loginDay,claimable,bump,mount,refresh,render,claim,open};
 })();

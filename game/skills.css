@@ -1,113 +1,218 @@
-/* 1.8: field skill buttons (production upgrade, camper van blast) and the daily missions chip/dialog. */
-.field-skills {
+/* 1.8/1.9 battle HUD, laid out like LINE Rangers: round skill buttons top-left, AUTO / x2 top-right,
+   the production "Lv" button bottom-left. app.js placeHud() sets the two top offsets under the base HP cards. */
+.skill-row,
+.speed-col {
   position: absolute;
-  left: 8px;
-  bottom: 8px;
+  top: 56px;
   z-index: 6;
   display: flex;
   gap: 6px;
 }
 
-.field-skills[hidden] {
+.skill-row {
+  left: 8px;
+}
+
+.speed-col {
+  right: 8px;
+  flex-direction: column;
+}
+
+.skill-row[hidden],
+.speed-col[hidden],
+.mine-button[hidden],
+.skill-orb[hidden] {
   display: none;
 }
 
-.skill-button {
-  --charge: 0;
+.skill-orb {
+  --charge: 1;
   position: relative;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  min-height: 0;
+  padding: 0;
+  border: 3px solid #fff4d6;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fffdf3, #f1dfb2 70%);
+  box-shadow: 0 3px 0 #8764417a, 0 0 0 1.5px #b08c5c;
+  color: #5f4a33;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.skill-orb span {
+  font-size: 24px;
+  line-height: 1;
+  margin-top: -6px;
+}
+
+.skill-orb small {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #5f4a33e6;
+  color: #fff8e6;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.skill-orb.blast {
+  background: conic-gradient(#ffcf6a calc(var(--charge) * 360deg), #e6d7b8 0), radial-gradient(#fffdf3, #f1dfb2);
+}
+
+.skill-orb.blast::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fffdf3, #f6e4b8 70%);
+}
+
+.skill-orb.blast span {
+  position: relative;
+}
+
+.skill-orb.item {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #cfe7f2 75%);
+}
+
+.skill-orb.item[data-item="meteor"] { background: radial-gradient(circle at 35% 30%, #fff7e8, #f6c08b 75%); }
+.skill-orb.item[data-item="gust"] { background: radial-gradient(circle at 35% 30%, #fbfff4, #cde9c2 75%); }
+.skill-orb.item[data-item="shield"] { background: radial-gradient(circle at 35% 30%, #fffdf0, #e9dc9c 75%); }
+
+.skill-orb:disabled {
+  cursor: default;
+  filter: saturate(.35) brightness(.92);
+  opacity: .75;
+}
+
+.skill-orb.used::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #3f3a2f8c;
+  color: #fff;
+  font-size: 20px;
+}
+
+.skill-orb.blast.ready {
+  opacity: 1;
+  filter: none;
+  border-color: #ffd36e;
+  animation: blast-ready 1s ease-in-out infinite;
+}
+
+@keyframes blast-ready {
+  50% { box-shadow: 0 3px 0 #8764417a, 0 0 0 5px #ffcf6aaa; }
+}
+
+.round-toggle {
+  width: 52px;
+  height: 52px;
+  min-height: 0;
+  padding: 0;
+  border: 3px solid #fff4d6;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6f7d6a, #3d4a3b);
+  box-shadow: 0 3px 0 #2c352b88, 0 0 0 1.5px #b08c5c;
+  color: #fff2c8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.round-toggle[aria-pressed="true"] {
+  background: radial-gradient(circle at 35% 30%, #ffe08a, #e2a43c);
+  color: #5a3a12;
+  box-shadow: 0 3px 0 #8764417a, 0 0 0 3px #ffcf6aaa;
+}
+
+.mine-button {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 6;
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 0;
-  width: 68px;
-  min-height: 60px;
+  width: 74px;
+  min-height: 70px;
   padding: 4px 2px;
-  border: 2px solid #c7ac80;
-  border-radius: 14px;
-  background: linear-gradient(#fffaf0f2, #f3e7c8f2);
-  box-shadow: 0 3px 0 #87644155;
-  color: #5f4a33;
+  border: 3px solid #fff4d6;
+  border-radius: 16px;
+  background: linear-gradient(#a8d58b, #5f9a52);
+  box-shadow: 0 4px 0 #3e6a37, 0 0 0 1.5px #3e6a37;
+  color: #fffbe8;
   font: inherit;
   line-height: 1.15;
   cursor: pointer;
   touch-action: manipulation;
 }
 
-.skill-button span {
-  font-size: 20px;
-  line-height: 1.1;
+.mine-button span {
+  font-size: 22px;
 }
 
-.skill-button b {
-  font-size: 11px;
+.mine-button b {
+  font-size: 14px;
+  text-shadow: 0 1px 0 #2f5629;
 }
 
-.skill-button small {
+.mine-button small {
   font-size: 10px;
-  color: #7d6a4f;
 }
 
-.skill-button:disabled {
+.mine-button:disabled {
   cursor: default;
-  opacity: .72;
-  filter: saturate(.6);
-}
-
-.skill-button.flux-up:not(:disabled) {
-  border-color: #6f9a5c;
-  background: linear-gradient(#f4fbe6f2, #d9ebbcf2);
-}
-
-.skill-button.blast {
-  background: linear-gradient(to top, #ffd27af2 calc(var(--charge) * 100%), #fffaf0f2 calc(var(--charge) * 100%));
-}
-
-.skill-button.blast.ready {
-  opacity: 1;
-  filter: none;
-  border-color: #c96b4e;
-  animation: blast-ready 1s ease-in-out infinite;
-}
-
-.skill-button.blast.ready small {
-  color: #a3412c;
-  font-weight: 700;
-}
-
-@keyframes blast-ready {
-  50% { box-shadow: 0 3px 0 #87644155, 0 0 0 4px #ffcf6a88; }
+  filter: saturate(.5);
+  opacity: .8;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skill-button.blast.ready { animation: none; box-shadow: 0 3px 0 #87644155, 0 0 0 3px #ffcf6a; }
+  .skill-orb.blast.ready { animation: none; box-shadow: 0 3px 0 #8764417a, 0 0 0 4px #ffcf6a; }
 }
 
-/* phones: small enough to leave the van and the front line visible */
+/* phones: smaller, so the van and the front line stay visible */
 @media (max-width: 650px), (max-height: 520px) {
-  .field-skills {
+  .skill-row { left: 5px; gap: 4px; }
+  .speed-col { right: 5px; gap: 4px; }
+
+  .skill-orb,
+  .round-toggle {
+    width: 40px;
+    height: 40px;
+    border-width: 2px;
+  }
+
+  .skill-orb span { font-size: 18px; margin-top: -4px; }
+  .skill-orb small { font-size: 7.5px; bottom: -6px; padding: 0 3px; }
+  .round-toggle { font-size: 10px; }
+
+  .mine-button {
     left: 5px;
     bottom: 5px;
-    gap: 4px;
+    width: 56px;
+    min-height: 52px;
+    border-radius: 12px;
+    border-width: 2px;
   }
 
-  .skill-button {
-    width: 52px;
-    min-height: 46px;
-    border-radius: 11px;
-    padding: 2px 1px;
-  }
-
-  .skill-button span {
-    font-size: 15px;
-  }
-
-  .skill-button b {
-    font-size: 9px;
-  }
-
-  .skill-button small {
-    font-size: 8.5px;
-  }
+  .mine-button span { font-size: 16px; }
+  .mine-button b { font-size: 11px; }
+  .mine-button small { font-size: 8.5px; }
 }
 
 /* ---------- daily missions (daily-missions.js) ---------- */
@@ -322,40 +427,3 @@
   }
 }
 
-/* the start and result screens cover the header, so the missions button also sits in the modal's corner */
-.daily-open {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  z-index: 2;
-  min-height: 30px;
-  padding: 3px 10px;
-  border: 1.5px solid #c7ac80;
-  border-radius: 999px;
-  background: #fff6e2;
-  color: #5f4a33;
-  font: inherit;
-  font-size: 12px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.daily-open.has-reward {
-  border-color: #c96b4e;
-  box-shadow: 0 0 0 2px #ffcf6a88;
-}
-
-.daily-open .daily-badge {
-  top: -7px;
-  right: -7px;
-}
-
-@media (max-width: 650px), (max-height: 520px) {
-  .daily-open {
-    top: 6px;
-    right: 6px;
-    min-height: 28px;
-    padding: 2px 8px;
-    font-size: 11px;
-  }
-}

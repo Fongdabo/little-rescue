@@ -23,7 +23,7 @@
  dialog.innerHTML=`<h2 id="installTitle">ติดตั้ง Little Rescue</h2>
   <p>ติดตั้งแล้วจะมีไอคอนเกม เปิดเต็มจอเหมือนแอป เล่นได้แม้ไม่มีเน็ต และเซฟเดิมยังอยู่ครบ</p>
   <ol>${steps.map(s=>`<li>${s}</li>`).join('')}</ol>
-  <p class="install-note">เล่นบนคอม: กด 1–5 เรียกเพื่อน · U อัปการผลิต · B ยิงปืนใหญ่ · P หรือ Esc หยุดพัก</p>
+  <p class="install-note">เล่นบนคอม: กด 1–5 เรียกเพื่อน · U อัปการผลิต · B ปืนใหญ่ · Q W E R ไอเทม · P หรือ Esc หยุดพัก</p>
   <form method="dialog"><button class="primary" value="close">เข้าใจแล้ว</button></form>`;
 
  const refresh=()=>{button.hidden=standalone()};
