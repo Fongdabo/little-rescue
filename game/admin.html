@@ -65,6 +65,7 @@ a{color:var(--accent)}
 <button type="button" data-tab="gifts" aria-pressed="false">🎁 ของขวัญ</button>
 <button type="button" data-tab="events" aria-pressed="false">🎉 กิจกรรม</button>
 <button type="button" data-tab="maintenance" aria-pressed="false">🛠️ ปิดปรับปรุง</button>
+<button type="button" data-tab="chain" aria-pressed="false">🧪 NFT ทดลอง</button>
 <button type="button" data-tab="log" aria-pressed="false">📜 บันทึก</button>
 </nav>
 
@@ -115,6 +116,14 @@ a{color:var(--accent)}
 <button type="submit" id="mOn" class="danger">เปิดประกาศ</button><button type="button" id="mOff" class="ghost">ปิดประกาศ</button></form></div>
 </section>
 
+<section data-panel="chain" hidden>
+<div class="card"><h2>🧪 เหรียญหลักและ NFT ฮีโร่ (testnet เท่านั้น)</h2>
+<p class="hint">เครือข่ายทดลอง Base Sepolia ไม่มีมูลค่าจริง ไม่มีการซื้อขายด้วยเงิน เหรียญทองและเพชรในเกมไม่เปลี่ยนเป็นเหรียญนี้ ผู้เล่นรับเหรียญทดลองได้วันละครั้งหลังผ่านด่าน และทำฮีโร่ที่ถึงระดับดาวที่กำหนดเป็น NFT ได้ตัวละครั้ง</p>
+<div id="chainInfo"><p class="hint">กำลังโหลด…</p></div>
+<form id="chainDeploy" hidden><button type="submit">สร้างสัญญาบน testnet</button><span class="hint">ส่ง 2 รายการจากกระเป๋าเซิร์ฟเวอร์ (ใช้ ETH ทดลองเป็นค่าแก๊ส) ทำครั้งเดียวพอ</span></form>
+</div>
+</section>
+
 <section data-panel="log" hidden>
 <div class="card"><h2>บันทึกการกระทำของแอดมิน (100 รายการล่าสุด)</h2><table id="log"></table></div>
 </section>
@@ -161,7 +170,7 @@ document.querySelector('nav.tabs').addEventListener('click',e=>{const t=e.target
 function tab(t){
  document.querySelectorAll('nav.tabs [data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===t)));
  document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==t);
- ({gifts:loadGifts,events:loadEvents,log:loadLog,maintenance:refreshOverview})[t]?.();
+ ({gifts:loadGifts,events:loadEvents,log:loadLog,maintenance:refreshOverview,chain:loadChain})[t]?.();
 }
 
 // players
@@ -245,9 +254,28 @@ async function setMaintenance(on){
 $('mForm').addEventListener('submit',e=>{e.preventDefault();setMaintenance(true)});
 $('mOff').addEventListener('click',()=>setMaintenance(false));
 
+// 1.18 testnet token + NFT
+const CHAIN_OFF={off:'ยังปิดอยู่ ตั้งตัวแปร CHAIN_TESTNET=1 ใน Cloudflare เพื่อเปิด','no-minter-key':'ยังไม่ได้ตั้งความลับ CHAIN_MINTER_KEY (คีย์กระเป๋าใหม่ที่ใช้กับ testnet เท่านั้น)','cloud-not-configured':'ยังไม่ได้ผูกฐานข้อมูล SAVES_DB'};
+const CLAIM_STATUS={pending:'กำลังส่ง',sent:'ส่งแล้ว รอยืนยัน',done:'สำเร็จ',failed:'ไม่สำเร็จ'};
+async function loadChain(){
+ const d=await run(()=>api('chain'));if(!d)return;
+ if(!d.on){$('chainInfo').innerHTML=`<p>${esc(CHAIN_OFF[d.reason]||d.reason)}</p>`;$('chainDeploy').hidden=true;return}
+ const scan=a=>a?`<a href="${esc(d.network.explorer)}/address/${esc(a)}" target="_blank" rel="noopener"><code>${esc(a)}</code></a>`:'ยังไม่มี';
+ const eth=d.balanceWei===null?'อ่านไม่ได้':(Number(BigInt(d.balanceWei)/10n**12n)/1e6).toLocaleString('th-TH',{maximumFractionDigits:6})+' ETH ทดลอง';
+ $('chainInfo').innerHTML=`<table><tr><th>เครือข่าย</th><td>${esc(d.network.name)} (chain ${d.network.chainId})${d.chainError?` · <b>ต่อไม่ได้: ${esc(d.chainError)}</b>`:''}</td></tr>
+  <tr><th>กระเป๋าเซิร์ฟเวอร์</th><td>${scan(d.minter)} · ${esc(eth)} <a href="${esc(d.network.faucet)}" target="_blank" rel="noopener">ขอ ETH ทดลอง</a></td></tr>
+  <tr><th>เหรียญ tLRT</th><td>${scan(d.token)} ${d.token?(d.live.token?'✅':'⏳ รอยืนยัน'):''}</td></tr>
+  <tr><th>NFT ฮีโร่ tLRH</th><td>${scan(d.heroes)} ${d.heroes?(d.live.heroes?'✅':'⏳ รอยืนยัน'):''}</td></tr>
+  <tr><th>การรับของผู้เล่น</th><td>${d.claims.length?d.claims.map(c=>`${c.kind==='token'?'เหรียญ':'NFT'} ${esc(CLAIM_STATUS[c.status]||c.status)} ${c.n}`).join(' · '):'ยังไม่มี'}</td></tr></table>`;
+ $('chainDeploy').hidden=Boolean(d.token&&d.heroes);
+}
+$('chainDeploy').addEventListener('submit',async e=>{e.preventDefault();
+ if(!confirm('สร้างสัญญาเหรียญและ NFT บน Base Sepolia (testnet)? ต้องมี ETH ทดลองในกระเป๋าเซิร์ฟเวอร์ก่อน'))return;
+ if(await run(()=>api('chain/deploy',{method:'POST',body:{confirm:'testnet'}}),'ส่งคำสั่งสร้างสัญญาแล้ว รอประมาณ 10 วินาทีแล้วกดแท็บนี้อีกครั้ง'))loadChain()});
+
 // log
 const LEDGER={unlock:'ปลดล็อกตัวละคร','shop-purchase':'ซื้อเพชร','shop-refund':'คืนเงินเพชร',friend:'แต้มมิตรภาพ',seed:'ย้ายยอดเดิมเข้าเซิร์ฟเวอร์',win:'ชนะด่าน','win-offline':'ชนะด่าน (ออฟไลน์)',loss:'แพ้',level:'อัปเลเวล',star:'อัปดาว',summon:'สุ่ม',daily:'ภารกิจรายวัน',gift:'ของขวัญจากแอดมิน'};
-const ACTIONS={search:'ค้นหาผู้เล่น','view-player':'ดูข้อมูลผู้เล่น',gift:'ส่งของขวัญ','gift-revoke':'ยกเลิกของขวัญ',event:'สร้างกิจกรรม','event-end':'จบกิจกรรม',maintenance:'ประกาศปิดปรับปรุง'};
+const ACTIONS={search:'ค้นหาผู้เล่น','view-player':'ดูข้อมูลผู้เล่น',gift:'ส่งของขวัญ','gift-revoke':'ยกเลิกของขวัญ',event:'สร้างกิจกรรม','event-end':'จบกิจกรรม',maintenance:'ประกาศปิดปรับปรุง','chain-deploy':'สร้างสัญญา testnet'};
 async function loadLog(){
  const d=await run(()=>api('log'));if(!d)return;
  $('log').innerHTML=d.log.length?'<tr><th>เวลา</th><th>การกระทำ</th><th>เป้าหมาย</th><th>รายละเอียด</th><th>IP</th></tr>'+d.log.map(l=>`<tr><td>${when(l.at)}</td><td>${esc(ACTIONS[l.action]||l.action)}</td><td><code>${esc(l.target||'')}</code></td><td><code>${esc(l.detail||'')}</code></td><td><code>${esc(l.ip||'')}</code></td></tr>`).join(''):'<tr><td>ยังไม่มีบันทึก</td></tr>';
