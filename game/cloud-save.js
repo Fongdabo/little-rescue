@@ -54,7 +54,7 @@
    const bundle=await localBundle(),print=fingerprint(bundle);
    if(print===state.synced)return;
    const {status:code,data}=await api('save',{method:'PUT',token:state.token,body:{baseRev:state.rev,bundle},keepalive});
-   if(code===200){writeState({...state,rev:data.rev,synced:print});setStatus(`สำรองขึ้นคลาวด์แล้ว ${when(data.savedAt)}`)}
+   if(code===200){writeState({...state,rev:data.rev,synced:print});setStatus(`สำรองขึ้นคลาวด์แล้ว ${when(data.savedAt)}`);setTimeout(()=>window.SideviewWallet?.flush(),0)}
    else if(code===409){conflict={rev:data.rev,savedAt:data.savedAt,bundle:data.bundle,local:bundle};setStatus('มีเซฟบนคลาวด์ที่ใหม่กว่าจากเครื่องอื่น เลือกว่าจะเก็บอันไหน');render(false)}
    else if(code===401){writeState(null);setStatus('เครื่องนี้ออกจากบัญชีแล้ว เซฟในเครื่องยังอยู่ครบ')}
    else setStatus('สำรองขึ้นคลาวด์ไม่สำเร็จ จะลองใหม่อัตโนมัติ');
@@ -164,6 +164,7 @@
    html+=`<p>รหัสผู้เล่น <b>${esc(state.playerId)}</b> · เซฟสำรองขึ้นคลาวด์ให้อัตโนมัติเมื่อออนไลน์</p>
     <div class="cloud-code"><span>รหัสกู้บัญชี</span><code>${showCode?esc(state.recoveryCode||'— กดสร้างรหัสใหม่ —'):'••••-••••-••••-••••'}</code>
     <button type="button" data-act="toggle">${showCode?'ซ่อน':'แสดง'}</button>${showCode&&state.recoveryCode?'<button type="button" data-act="copy">คัดลอก</button>':''}</div>
+    ${window.SideviewWallet?.statusHTML?.()||''}
     <p class="cloud-note">ใช้รหัสนี้เข้าเล่นบนมือถือ/คอมเครื่องอื่น หรือหลังล้างข้อมูลเบราว์เซอร์ อย่าให้ใคร เพราะใครมีรหัสก็เข้าบัญชีนี้ได้</p>
     <div class="cloud-actions"><button type="button" data-act="sync">สำรองตอนนี้</button><button type="button" data-act="newcode">เปลี่ยนรหัสกู้บัญชี</button><button type="button" data-act="logout">ออกจากบัญชีบนเครื่องนี้</button></div>`;
   }else{
@@ -213,6 +214,6 @@
   setInterval(sync,15000);
   start();
  }
- window.SideviewCloud={KEY,sync,pull,mount,open:()=>render(true),get enabled(){return enabled},get conflict(){return conflict},_fingerprint:fingerprint};
+ window.SideviewCloud={KEY,sync,pull,mount,open:()=>render(true),paint,get enabled(){return enabled},get conflict(){return conflict},_fingerprint:fingerprint};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();

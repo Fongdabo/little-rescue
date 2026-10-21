@@ -1,4 +1,4 @@
-/* 1.14: real-money shop tab (gem packs), backed by functions/api/shop/[[path]].js on the same origin.
+/* 1.14: real-money shop tab (gem packs; gems buy summon pulls in summon.js), backed by functions/api/shop/[[path]].js on the same origin.
    Gems are kept on the server only (the player's cloud account wallet), never in the local save, so buying
    needs a cloud account (☁️). Paying happens on Stripe's hosted page (card or PromptPay QR); Stripe tells the
    server, which credits the gems; the game only shows the result. The tab stays a "เร็วๆ นี้" placeholder when the
@@ -29,6 +29,7 @@
  async function loadWallet(){
   if(!token()){wallet=null;return}
   try{const {status,data}=await api('wallet');wallet=status===200?data:null;if(status===401)note=ERRORS['signed-out']}catch{wallet=null}
+  window.SideviewSummon?.render();
  }
  // After returning from checkout: Stripe's message to the server can take a few seconds, so ask again for a while.
  async function watch(order){
@@ -110,5 +111,7 @@
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&config&&window.SideviewLobby?.tab==='shop')render(true)});
   start();
  }
- window.SideviewShop={KEY,mount,render,get enabled(){return Boolean(config)},get wallet(){return wallet}};
+ // The summon tab shows gem pulls from this balance and reports the balance the server returned after a pull.
+ function setGems(n){if(wallet){wallet.gems=n;render()}}
+ window.SideviewShop={KEY,mount,render,setGems,get enabled(){return Boolean(config)},get wallet(){return wallet},get gems(){return wallet?wallet.gems:null}};
 })();

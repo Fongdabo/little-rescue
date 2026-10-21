@@ -151,3 +151,23 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* gem pulls in the summon tab (summon.js): same grid as the coin buttons, blue to tell them apart */
+.summon-buttons button.gem {
+  border-color: #8fb4d6;
+  background: linear-gradient(#eef6ff, #d7e8f8);
+  color: #2f5577;
+  font-weight: 700;
+}
+
+.summon-buttons button.gem:disabled {
+  opacity: .55;
+}
+
+.summon-gems {
+  display: grid;
+  place-items: center;
+  color: #2f5577;
+  font-size: 12px;
+  font-weight: 700;
+}

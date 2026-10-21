@@ -3,6 +3,7 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const GAME = new URL('../game/', import.meta.url).pathname;
 const read = f => readFileSync(join(GAME, f), 'utf8');
@@ -20,6 +21,34 @@ const FUNCTIONS = new URL('../functions/api/', import.meta.url).pathname;
 for (const f of existsSync(FUNCTIONS) ? readdirSync(FUNCTIONS, {recursive: true}).filter(f => f.endsWith('.js')) : []) {
   try { execFileSync(process.execPath, ['--check', join(FUNCTIONS, f)], { stdio: 'pipe' }); }
   catch (e) { fail(`functions/api/${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
+}
+
+// 1c. the server wallet (functions/_lib) uses the same numbers as the game
+const LIB = new URL('../functions/_lib/', import.meta.url).pathname;
+for (const f of existsSync(LIB) ? readdirSync(LIB).filter(f => f.endsWith('.js')) : []) {
+  try { execFileSync(process.execPath, ['--check', join(LIB, f)], { stdio: 'pipe' }); }
+  catch (e) { fail(`functions/_lib/${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
+}
+if (existsSync(join(LIB, 'economy.js'))) {
+  const eco = await import(join(LIB, 'economy.js'));
+  const game = createRequire(import.meta.url)(join(GAME, 'engine.js'));
+  const window = {};
+  new Function('window', 'localStorage', read('daily-missions.js'))(window, null);
+  const same = (name, a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) fail(`server economy ${name} differs from the game: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`); };
+  same('UNIT_IDS', eco.UNIT_IDS, game.UNITS.map(u => u.id));
+  same('STAGE_REWARDS', eco.STAGE_REWARDS, game.STAGES.map(s => s.rewardCoins));
+  same('LEVELS', [eco.LEVELS.max, eco.LEVELS.costBase, eco.levelCost(7)], [game.LEVELS.max, game.LEVELS.costBase, game.levelCost(7)]);
+  same('STARS', [eco.STARS.max, eco.STARS.shards, eco.STARS.coins], [game.STARS.max, game.STARS.shards, game.STARS.coins]);
+  same('SUMMON', [eco.SUMMON.cost, eco.SUMMON.tenCost, eco.SUMMON.pity, eco.SUMMON.tiers.map(t => [t.id, t.shards, t.weight])],
+    [game.SUMMON.cost, game.SUMMON.tenCost, game.SUMMON.pity, game.SUMMON.tiers.map(t => [t.id, t.shards, t.weight])]);
+  same('MISSIONS', eco.MISSIONS, window.SideviewDaily.MISSIONS.map(m => ({id: m.id, goal: m.goal, coins: m.coins})));
+  same('LOGIN', eco.LOGIN, window.SideviewDaily.LOGIN.map(r => r.coins));
+  // the same random numbers must give the same summon
+  for (const [count, since] of [[1, 0], [10, 3], [10, 45], [1, 49]]) {
+    let a = 12345, b = 12345;
+    const lcg = seed => () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    same(`rollSummon(${count},${since})`, eco.rollSummon(lcg(a), count, since), game.rollSummon(lcg(b), count, since));
+  }
 }
 
 // 2. one build id everywhere: service worker, page, every recovery page
@@ -51,7 +80,7 @@ for (const m of read('index.html').matchAll(/(?:href|src)="([^"#:]+)"/g)) {
 }
 
 // 4. saves players already have must keep loading
-const KEYS = ['little-rescue-sideview-save-v2', 'little-rescue-sideview-save-v1', 'little-rescue-meta-v1', 'little-rescue-daily-v1', 'little-rescue-cloud-v1', 'little-rescue-summon-v1'];
+const KEYS = ['little-rescue-sideview-save-v2', 'little-rescue-sideview-save-v1', 'little-rescue-meta-v1', 'little-rescue-daily-v1', 'little-rescue-cloud-v1', 'little-rescue-summon-v1', 'little-rescue-wallet-v1'];
 const all = readdirSync(GAME).filter(f => f.endsWith('.js')).map(read).join('\n');
 for (const k of KEYS) if (!all.includes(k)) fail(`save key ${k} disappeared from the scripts`);
 const manifest = JSON.parse(read('manifest.webmanifest'));

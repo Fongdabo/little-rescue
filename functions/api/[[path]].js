@@ -8,6 +8,11 @@
 // Only SHA-256 hashes of tokens and codes are stored. The save itself is an opaque JSON bundle the game validates
 // before restoring it; the server only checks its envelope and size. rev gives compare-and-swap uploads so two
 // devices can never silently overwrite each other.
+// 1.13 adds /api/wallet/* (server wallet and anti-cheat, docs/server-wallet.md); helpers live in functions/_lib.
+
+import {json, fail, readBody, sha256, authenticate, ensureSchema} from '../_lib/http.js';
+import {getWallet, publicView} from '../_lib/wallet.js';
+import {seed, startRun, applyOp} from '../_lib/play.js';
 
 const MAX_BUNDLE = 32 * 1024;
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
@@ -17,12 +22,6 @@ const SCHEMA = [
   'CREATE INDEX IF NOT EXISTS devices_player ON devices (player_id)',
   'CREATE TABLE IF NOT EXISTS saves (player_id TEXT PRIMARY KEY, rev INTEGER NOT NULL, saved_at INTEGER NOT NULL, data TEXT NOT NULL)'
 ];
-let schemaReady = null;
-
-const json = (body, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}
-});
-const fail = (status, error) => json({error}, status);
 
 function randomCode(groups) {
   const bytes = crypto.getRandomValues(new Uint8Array(groups * 4));
@@ -33,37 +32,13 @@ function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-async function sha256(text) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
-}
 const normalizeCode = value => typeof value === 'string' ? value.toUpperCase().replace(/[^0-9A-Z]/g, '') : '';
-
-async function readBody(request) {
-  const text = await request.text();
-  if (text.length > MAX_BUNDLE + 1024) throw Object.assign(new Error('too-large'), {status: 413});
-  try { const value = JSON.parse(text || '{}'); if (value && typeof value === 'object' && !Array.isArray(value)) return value; }
-  catch (_) { /* fall through */ }
-  throw Object.assign(new Error('bad-json'), {status: 400});
-}
 
 async function issueDevice(db, playerId, now) {
   const token = randomToken();
   await db.prepare('INSERT INTO devices (token_hash, player_id, created_at, last_seen) VALUES (?, ?, ?, ?)')
     .bind(await sha256(token), playerId, now, now).run();
   return token;
-}
-
-async function authenticate(request, db, now) {
-  const header = request.headers.get('Authorization') || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  if (!/^[A-Za-z0-9_-]{40,64}$/.test(token)) return null;
-  const hash = await sha256(token);
-  const row = await db.prepare('SELECT player_id, last_seen FROM devices WHERE token_hash = ?').bind(hash).first();
-  if (!row) return null;
-  // last_seen is only for cleaning up dead devices later; one write per hour is enough.
-  if (now - row.last_seen > 3600000) await db.prepare('UPDATE devices SET last_seen = ? WHERE token_hash = ?').bind(now, hash).run();
-  return {playerId: row.player_id, tokenHash: hash};
 }
 
 function validBundle(bundle) {
@@ -74,10 +49,10 @@ function validBundle(bundle) {
 
 async function route(request, env, path) {
   const db = env.SAVES_DB, now = Date.now(), method = request.method;
-  if (path === 'health' && method === 'GET') return json({ok: true, cloud: Boolean(db)});
+  // wallet: true tells 1.13+ games that this server checks coins (functions/_lib/play.js).
+  if (path === 'health' && method === 'GET') return json({ok: true, cloud: Boolean(db), wallet: Boolean(db)});
   if (!db) return fail(503, 'cloud-not-configured');
-  schemaReady = schemaReady || db.batch(SCHEMA.map(sql => db.prepare(sql))).catch(error => { schemaReady = null; throw error; });
-  await schemaReady;
+  await ensureSchema(db, 'cloud', SCHEMA);
 
   if (path === 'account' && method === 'POST') {
     const playerId = 'LR-' + randomCode(2), recoveryCode = randomCode(4);
@@ -124,6 +99,30 @@ async function route(request, env, path) {
     if (row) return json({rev: row.rev, savedAt: row.saved_at});
     const current = await db.prepare('SELECT rev, saved_at, data FROM saves WHERE player_id = ?').bind(auth.playerId).first();
     return json({error: 'conflict', rev: current.rev, savedAt: current.saved_at, bundle: JSON.parse(current.data)}, 409);
+  }
+
+  // 1.13 server wallet. GET answers wallet: null until the device sends its local progress once (seed).
+  if (path === 'wallet' && method === 'GET') {
+    const wallet = await getWallet(db, auth.playerId);
+    return json({playerId: auth.playerId, wallet: wallet?.seeded ? publicView(wallet) : null});
+  }
+  if (path === 'wallet/seed' && method === 'POST') {
+    const outcome = await seed(db, auth.playerId, await readBody(request), now);
+    if (!outcome.applied && outcome.error !== 'already-seeded' && !outcome.duplicate) return fail(outcome.error === 'busy' ? 503 : 400, outcome.error);
+    return json({playerId: auth.playerId, wallet: publicView(await getWallet(db, auth.playerId))});
+  }
+  if (path === 'wallet/run' && method === 'POST') {
+    const outcome = await startRun(db, auth.playerId, (await readBody(request)).stage, now);
+    return outcome.error ? fail(outcome.error === 'rate-limited' ? 429 : 409, outcome.error) : json(outcome);
+  }
+  if (path === 'wallet/ops' && method === 'POST') {
+    const ops = (await readBody(request)).ops;
+    if (!Array.isArray(ops) || ops.length > 50) return fail(400, 'bad-ops');
+    // In order: a later action may depend on an earlier one (a win pays for a level-up).
+    const results = [];
+    for (const op of ops) results.push(await applyOp(db, auth.playerId, op, now));
+    const wallet = await getWallet(db, auth.playerId);
+    return json({results, wallet: wallet?.seeded ? publicView(wallet) : null});
   }
   return fail(404, 'not-found');
 }

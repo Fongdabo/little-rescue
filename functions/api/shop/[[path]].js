@@ -8,12 +8,13 @@
 //   STRIPE_WEBHOOK_SECRET  secret, whsec_... from the webhook endpoint https://<site>/api/shop/webhook
 // Optional: SHOP_METHODS (default "card,promptpay"), SHOP_MONTHLY_LIMIT_THB (default 3000).
 //
-// Gems live only on the server, in the shared wallet (functions/_lib/wallet.js, owned by the anti-cheat work).
+// Gems live only on the server, in the shared wallet (functions/_lib/wallet.js, docs/server-wallet.md); they are spent
+// on summons through /api/wallet/ops ({kind:'summon', currency:'gems'}), not here.
 // Every wallet change carries an idempotency ref, so Stripe retrying a webhook never credits twice:
 //   pay:<order>   refund:<order>:<amount refunded so far>   dispute:<order>
 // Gems buy summon pulls at the same rates as coins (rates are shown in the game). Nothing is sold only for money.
 
-import {json, fail, readBody, authenticate} from '../../_lib/http.js';
+import {json, fail, readBody, authenticate, ensureSchema} from '../../_lib/http.js';
 import {ensureWallet, getWallet, credit, debit} from '../../_lib/wallet.js';
 
 // Prices in satang (1/100 THB). Changing a pack only affects new orders; old orders keep their own gems/amount.
@@ -34,7 +35,6 @@ const SCHEMA = [
   // Gems a refund could not take back because they were already spent; taken from the next purchase.
   'CREATE TABLE IF NOT EXISTS shop_owed (player_id TEXT PRIMARY KEY, gems INTEGER NOT NULL)'
 ];
-let schemaReady = null;
 
 const isLiveKey = key => /^(sk|rk)_live_/.test(key || '');
 function shopState(env) {
@@ -159,8 +159,7 @@ async function route(request, env, path, now) {
   if (path === 'config' && method === 'GET')
     return json({...state, currency: 'THB', packs: state.open ? PACKS.map(publicPack) : [], monthlyLimit: Number(env.SHOP_MONTHLY_LIMIT_THB || 3000)});
   if (!state.open) return fail(503, state.reason);
-  schemaReady = schemaReady || Promise.all([ensureWallet(db), db.batch(SCHEMA.map(sql => db.prepare(sql)))]).catch(error => { schemaReady = null; throw error; });
-  await schemaReady;
+  await Promise.all([ensureWallet(db), ensureSchema(db, 'shop', SCHEMA)]);
 
   if (path === 'webhook' && method === 'POST') return webhook(request, env, db, now);
 

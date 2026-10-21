@@ -28,6 +28,8 @@
  *   attackLock. Feet move at the real speed, re-form behind shorter-reach friends,
  *   and stay still for the full attack/heal release. Unscreened rear units have
  *   a bounded 90-world backstep per opponent; front fighters hold contact.
+ *   .abandon() ends a running or paused fight as a loss (reason 'exit') with no
+ *   reward; once the base is destroyed the win is kept, so it returns false.
  *   .prepareReplay() returns a lost/claimed-won battle to ready for team edits,
  *   without spending entry energy or incrementing runId. Start charges later.
  *   .claimReward() returns {coins,cookies,friend} once per win, otherwise false.
@@ -442,6 +444,18 @@
       this._resetFields();
       this.state = 'ready';
       this.lastError = '';
+      return true;
+    }
+
+    get canAbandon() {
+      return this.state === 'running' || (this.state === 'paused' && this._resumeState === 'running');
+    }
+
+    abandon() {
+      if (!this.canAbandon) return false;
+      this.state = 'lost';
+      this.reason = 'exit';
+      this.projectiles = [];
       return true;
     }
 

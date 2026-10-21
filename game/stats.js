@@ -48,7 +48,7 @@
   if(runId&&ended!==runId&&(battle.state==='won'||battle.state==='advancing'||battle.state==='lost')){
    ended=runId;const won=battle.state!=='lost';
    add('end',{stage,result:won?'won':'lost',secs:Math.round(battle.time||0),
-    why:won?'':battle.homeHP<=0?'base':'time',
+    why:won?'':battle.reason==='exit'?'quit':battle.homeHP<=0?'base':'time',
     hp:Math.round(Math.max(0,won?battle.homeHP/window.Sideview.CONFIG.homeHP:battle.enemyHP/battle.enemyMaxHP)*100)});
    flush();
   }
@@ -63,7 +63,8 @@
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hidden(lastBattle);else visibleSince=performance.now()});
  addEventListener('pagehide',()=>{if(!document.hidden)hidden(lastBattle)});
  addEventListener('online',flush);
- setInterval(flush,60000);
+ // While the game stays open, report play time every 2 minutes so a session counts even if it never hides.
+ setInterval(()=>{if(!document.hidden&&!state.off)add('active',{secs:seconds()});flush()},120000);
  const toggle=document.getElementById('statsToggle');
  if(toggle){toggle.checked=!state.off;toggle.addEventListener('change',()=>{window.SideviewStats.enabled=toggle.checked})}
  window.SideviewStats={
