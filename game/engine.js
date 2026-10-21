@@ -331,6 +331,7 @@
       this.levels = UNITS.map(() => 1);
       this.stars = UNITS.map(() => 1);
       this.equippedItems = ITEMS.map(item => item.id);
+      this.helper = null;
       this._resetFields();
     }
 
@@ -364,6 +365,7 @@
       this.blastCharge = 0;
       this.bossSpawned = false;
       this.itemsUsed = [];
+      this.helperUsed = false;
       this.freezeRemaining = 0;
       this.shieldRemaining = 0;
       this.homeHP = CONFIG.homeHP;
@@ -427,6 +429,34 @@
       this._resumeState = 'running';
       this._eventSerial = 0;
       this._projectileSerial = 0;
+    }
+
+    // 1.13 friend helper: one borrowed hero {unit, level, star, name}, summoned once per battle at its normal cost.
+    // Chosen before a battle (ready/won/lost), like the roster; null removes it.
+    setHelper(helper) {
+      if (this.state !== 'ready' && this.state !== 'won' && this.state !== 'lost') return false;
+      if (helper === null) { this.helper = null; return true; }
+      if (!helper || !Number.isInteger(helper.unit) || !UNITS[helper.unit] ||
+          !Number.isInteger(helper.level) || helper.level < 1 || helper.level > LEVELS.max ||
+          !Number.isInteger(helper.star) || helper.star < 1 || helper.star > STARS.max) return false;
+      this.helper = {unit: helper.unit, level: helper.level, star: helper.star, name: String(helper.name || '').slice(0, 24)};
+      return true;
+    }
+
+    get helperReady() {
+      return Boolean(this.state === 'running' && this.helper && !this.helperUsed &&
+        this.allies.length < CONFIG.maxAllies && this.flux + 1e-9 >= UNITS[this.helper.unit].cost);
+    }
+
+    summonHelper() {
+      if (!this.helperReady) return false;
+      const {unit, level, star, name} = this.helper, spec = UNITS[unit];
+      this.flux = Math.max(0, this.flux - spec.cost);
+      this.helperUsed = true;
+      this.metrics.summons += 1;
+      this.metrics.fluxSpent += spec.cost;
+      this._spawnAlly(spec, unit, level, star, {helper: true, ownerName: name});
+      return true;
     }
 
     setMode(mode) {
@@ -594,7 +624,7 @@
     summon(index) {
       if (this.state !== 'running' || !Number.isInteger(index) || !UNITS[index] ||
           !this.selectedRoster.includes(index)) return false;
-      const spec = UNITS[index], power = levelMultiplier(this.levels[index]) * starMultiplier(this.stars[index]);
+      const spec = UNITS[index];
       if (this.allies.length >= CONFIG.maxAllies || this.cooldowns[index] > 1e-9 ||
           this.flux + 1e-9 < spec.cost) return false;
       // All guards precede this single mutation: repeated clicks cannot double spend.
@@ -603,20 +633,25 @@
       this.metrics.summons += 1;
       this.metrics.summonsByUnit[index] += 1;
       this.metrics.fluxSpent += spec.cost;
+      this._spawnAlly(spec, index, this.levels[index], this.stars[index]);
+      return true;
+    }
+
+    _spawnAlly(spec, index, level, star, extra) {
+      const power = levelMultiplier(level) * starMultiplier(star);
       this.allies.push({id: spec.id + '-' + this.runId + '-' + (++this._serial),
         unitId: spec.id, index, kind: spec.kind, type: spec.type,
         classId: spec.classId, classTag: spec.classTag, className: spec.className,
         faction: 'ally', name: spec.name, x: CONFIG.homeX + CONFIG.spawnInset,
         hp: spec.hp * power, maxHP: spec.hp * power, damage: spec.damage * power, range: spec.range,
         attackRange: spec.range, stopDistance: spec.stopDistance,
-        speed: spec.speed, cooldown: 0.12, healCooldown: 0, power, level: this.levels[index], star: this.stars[index],
+        speed: spec.speed, cooldown: 0.12, healCooldown: 0, power, level, star,
         attackLock: 0, movement: 'hold', targetId: null, targetX: null,
         formationAnchorId: null, formationGap: 0,
         retreatRemaining: ['guard', 'scout'].includes(spec.kind) ? 0 : CONFIG.retreatLimitWithoutScreen,
         _retreatSpent: 0,
         attackFlash: 0, blockFlash: 0, hitFlash: 0, blockedDamage: 0,
-        facing: 1, asset: spec.asset});
-      return true;
+        facing: 1, asset: spec.asset, ...extra});
     }
 
     _spawnEnemy(boss) {
@@ -925,7 +960,8 @@
       if (this.mode === 'auto' && this.time + 1e-9 >= this._nextAuto) {
         // Save up for the next role so cheap units cannot starve costly ones.
         // This rotates the selected roster and calls exactly the player's API.
-        if (this.summon(this.selectedRoster[this._autoIndex])) {
+        // A borrowed friend helper goes first, as soon as it is affordable.
+        if (this.summonHelper()) { /* the roster turn waits */ } else if (this.summon(this.selectedRoster[this._autoIndex])) {
           this._autoIndex = (this._autoIndex + 1) % this.selectedRoster.length;
         }
         this._nextAuto = this.time + CONFIG.autoCadence;

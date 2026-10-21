@@ -27,6 +27,10 @@ The owner writes Thai; reply in Thai.
   HMAC signature and the order amount). Gems live only in the server wallet (`functions/_lib/wallet.js`), never in a local key;
   `little-rescue-shop-v1` only remembers the last opened order. Live keys stay blocked unless `SHOP_LIVE=1`. Packs are
   `PACKS` in that file; gems buy summons at the coin rates. Test: README "ร้านค้าเพชร".
+- Friends + guilds (1.15): `functions/api/friends/[[path]].js`, `functions/api/guilds/[[path]].js`, shared `functions/_lib/social.js`
+  (tables profiles, friend_links, friend_gifts, helper_uses, guilds, guild_members in SAVES_DB). Friendship points are the
+  server wallet's `fp`, earned only through `award()` (300 F/day cap, Thai day). Client `friends.js`: nothing in any save;
+  the lent hero is a UI choice in `little-rescue-social-v1`; a borrowed helper is `battle.setHelper()` for one run.
 - The save export format is strict (save-transfer.js rejects unknown keys); meta is not exported yet.
 - Keep the origin, `manifest.webmanifest` `id`/`start_url`, the Web Locks lifecycle lease and update gating
   (pwa.js never reloads mid-battle or before a reward is claimed).

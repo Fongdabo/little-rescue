@@ -8,7 +8,7 @@
  const TABS=[
   {id:'adventure',icon:'🗺️',label:'ผจญภัย'},{id:'team',icon:'🐾',label:'ทีม'},{id:'upgrade',icon:'⬆️',label:'อัปเกรด'},
   {id:'book',icon:'📖',label:'สะสม'},{id:'summon',icon:'✨',label:'สุ่ม'},{id:'missions',icon:'📋',label:'ภารกิจ'},
-  {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน',soon:true},{id:'gifts',icon:'🎁',label:'ของขวัญ',soon:true}];
+  {id:'shop',icon:'🏪',label:'ร้านค้า',soon:true},{id:'friends',icon:'🤝',label:'เพื่อน'},{id:'gifts',icon:'🎁',label:'ของขวัญ',soon:true}];
  const typeName={stone:'หินอุ่น',star:'แสงดาว',wind:'สายลม'};
  let app=null,tab='adventure',bar=null,items=null,book=null;
 
@@ -21,6 +21,7 @@
   if(id==='book')renderBook();
   if(id==='summon')window.SideviewSummon?.render();
   if(id==='shop')window.SideviewShop?.render(true);
+  if(id==='friends')window.SideviewFriends?.open();
   refresh();
  }
  function renderItems(){
@@ -46,6 +47,7 @@
   if(!bar)return;
   const ready=app.battle.state==='ready';bar.hidden=!ready;items.hidden=!ready||tab!=='adventure';
   if(ready)renderItems();
+  window.SideviewFriends?.refresh(ready&&tab==='adventure');
   if(ready&&tab==='book')renderBook();
  }
  function mount(bridge){

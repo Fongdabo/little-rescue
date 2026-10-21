@@ -10,7 +10,8 @@
 #preflightControls[data-tab="upgrade"] > :not(:nth-child(7), :nth-child(8)),
 #preflightControls[data-tab="book"] > :not(.hero-book),
 #preflightControls[data-tab="summon"] > :not(.summon-panel),
-#preflightControls[data-tab="shop"] > :not(.shop-panel) {
+#preflightControls[data-tab="shop"] > :not(.shop-panel),
+#preflightControls[data-tab="friends"] > :not(.friends-panel) {
   display: none !important;
 }
 
