@@ -124,12 +124,15 @@ $('actionBtn').addEventListener('click',()=>{
  if(battle.state==='paused'){battle.pause();sync();return}
  savedAction(()=>{
    if(battle.state==='ready'){const ok=battle.start();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
-   if(battle.state==='won'){const reward=battle.claimReward();if(reward)toast(reward.friend?'รับรางวัลแล้ว เพื่อนเข้าร่วมคอลเลกชันแล้ว!':`รับ ${reward.coins} เหรียญแล้ว`);return Boolean(reward)}
+   if(battle.state==='won'){const reward=battle.claimReward();if(reward){toast(reward.friend?'รับรางวัลแล้ว เพื่อนเข้าร่วมคอลเลกชันแล้ว!':`รับ ${reward.coins} เหรียญแล้ว`);
+     window.SideviewWallet?.record({kind:'win',stage:reward.stageIndex,run:window.SideviewWallet.runFor(battle.runId),battle:Math.round(battle.time*10)/10,summons:battle.metrics.summons})}return Boolean(reward)}
    if(battle.state==='lost'){const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
    return false;
- }).then(markCleared);
+ }).then(started).then(markCleared);
 });
-$('replayBtn').addEventListener('click',()=>savedAction(()=>{const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}));
+// 1.13 server wallet (wallet.js): a signed-in player's battle gets a run ticket so the server can time it.
+function started(ok){if(ok&&battle.state==='running')window.SideviewWallet?.startRun(battle.runId,battle.stageIndex);return ok}
+$('replayBtn').addEventListener('click',()=>savedAction(()=>{const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}).then(started));
 // 1.12.2: the pause menu can leave the fight (a loss with no reward) or restart it; each asks once before acting.
 let leaveAsk=null;
 function askLeave(kind){
@@ -139,11 +142,13 @@ function askLeave(kind){
  $('retryBtn').hidden=!retry;$('exitBtn').hidden=retry;$(retry?'retryBtn':'exitBtn').textContent=retry?'ใช่ เริ่มใหม่':'ใช่ ออกจากด่าน';
  $('actionBtn').textContent='ไม่ใช่ · เล่นต่อ →';$('modalNote').textContent='P / Escape เพื่อเล่นต่อ';$('actionBtn').focus();
 }
-function countRun(){if(countedRun!==battle.runId){countedRun=battle.runId;if(battle.metrics.summons)window.SideviewDaily.bump('summons',battle.metrics.summons)}}
+function countRun(){if(countedRun!==battle.runId){countedRun=battle.runId;if(battle.metrics.summons)window.SideviewDaily.bump('summons',battle.metrics.summons);
+ // A win carries its calls in the win op; any other end of a run reports them for the daily mission.
+ if(battle.state!=='won'&&battle.metrics.summons)window.SideviewWallet?.record({kind:'loss',stage:battle.stageIndex,summons:battle.metrics.summons})}}
 $('retryBtn').addEventListener('click',()=>{
  if(!battle.canAbandon)return;if(leaveAsk!=='retry'){askLeave('retry');return}
  if(bank.refresh()<CONFIG.entryCost){toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return}
- countRun();savedAction(()=>{if(!battle.abandon())return false;window.SideviewStats?.observe(battle,meta.cleared);return battle.replay()});
+ countRun();savedAction(()=>{if(!battle.abandon())return false;window.SideviewStats?.observe(battle,meta.cleared);return battle.replay()}).then(started);
 });
 $('exitBtn').addEventListener('click',()=>{
  if(!ready||actionPending||!window.SideviewPWA.canAct()||!battle.canAbandon)return;if(leaveAsk!=='exit'){askLeave('exit');return}
@@ -180,7 +185,7 @@ function renderLevels(){
 }
 async function levelUp(index){
  const lv=battle.levels[index],cost=levelCost(lv);if(lv>=LEVELS.max)return;
- const ok=await savedAction(()=>{if(battle.state!=='ready'||battle.progress.coins<cost){toast('เหรียญยังไม่พอ ชนะด่านเพื่อรับเหรียญ');return false}battle.progress.coins-=cost;return true});
+ const ok=await savedAction(()=>{if(battle.state!=='ready'||battle.progress.coins<cost){toast('เหรียญยังไม่พอ ชนะด่านเพื่อรับเหรียญ');return false}battle.progress.coins-=cost;window.SideviewWallet?.record({kind:'level',unit:index,level:lv});return true});
  if(!ok)return;meta=readMeta();meta.levels[index]=Math.min(LEVELS.max,meta.levels[index]+1);
  if(!writeMeta())toast('บันทึกเลเวลไม่สำเร็จ');battle.setLevels(meta.levels);toast(`${UNITS[index].name} เลเวล ${battle.levels[index]} แล้ว!`);levelKey='';window.SideviewDaily.bump('levelups');sync();
 }
@@ -386,10 +391,12 @@ window.SideviewLobby.mount({battle,UNITS,ITEMS,levelMultiplier,starMultiplier,as
 // 1.12 summon and star grades (summon.js). Stars only change before a battle, so a running battle keeps its power.
 window.SideviewSummon.mount({savedAction,toast,assetURL,coins:()=>battle.progress.coins,canAct:()=>ready&&!actionPending&&battle.state==='ready'&&window.SideviewPWA.canAct(),
  spend:coins=>{battle.progress.coins-=coins;levelKey=''},changed:()=>{if(battle.state==='ready')battle.setStars(window.SideviewSummon.stars());levelKey='';sync()}});
+// 1.14 gem shop (shop.js). It only opens from the lobby, so going to checkout never leaves a battle or an unclaimed reward.
+window.SideviewShop.mount({toast,canAct:()=>ready&&!actionPending&&battle.state==='ready'&&window.SideviewPWA.canAct()});
 window.SideviewDaily.mount({savedAction,toast,canClaim:()=>ready&&!actionPending&&(battle.state==='ready'||battle.state==='lost'||(battle.state==='won'&&battle.claimed)),
  pay:(coins,cookies)=>{battle.progress.coins+=coins;if(cookies)bank.add(cookies);levelKey=''}});
 $('replayBtn').textContent=`เล่นอีกครั้ง · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;
-window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.12.5',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.12.5',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
+window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,speed,equippedItems:[...battle.equippedItems],itemsUsed:[...battle.itemsUsed],freezeRemaining:battle.freezeRemaining,shieldRemaining:battle.shieldRemaining,fluxLevel:battle.fluxLevel,fluxCap:battle.fluxCap,blastCharge:battle.blastCharge,blastReady:battle.blastReady,bossSpawned:battle.bossSpawned,boss:(battle.enemies.find(e=>e.boss)||null)&&{...battle.enemies.find(e=>e.boss)},time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.14.0',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.14.0',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
 saves.subscribe(snapshot=>{const coins=battle.progress.coins,rescued=battle.progress.rescued;applySaved(snapshot);if(battle.state==='won'&&(coins!==battle.progress.coins||rescued!==battle.progress.rescued))renderedState='';energy();sync()});
 const importSafe=()=>ready&&!actionPending&&window.SideviewTransfer.canImport(battle.state,battle.claimed);
 window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refresh:sync,
@@ -419,6 +426,25 @@ window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refr
      applySaved(receipt.snapshot,true);battle.setRoster(receipt.snapshot.roster);
      meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
      levelKey='';renderedState='';window.SideviewDaily.refresh();return true;
+   }finally{actionPending=false;storageNote();energy();sync()}
+ },
+ // 1.13 server wallet (wallet.js): take the server's coins, levels, cleared stages and stars. stillClean() is
+ // checked inside the save lock, so an action queued meanwhile is never overwritten.
+ applyWallet:async(view,stillClean)=>{
+   if(!importSafe()||!window.SideviewPWA.canAct()||!saves.writable)return false;
+   actionPending=true;sync();let accepted=false;
+   try{
+     const receipt=await saves.mutate(draft=>{
+       if(!stillClean())return false;
+       const now=readMeta(),next=cleanMeta({...now,cleared:view.cleared,levels:view.levels});
+       if(!next||!Number.isSafeInteger(view.coins)||view.coins<0)return false;
+       try{storage.setItem(metaKey,JSON.stringify(next))}catch{return false}
+       if(!window.SideviewSummon.adopt(view))return false;
+       accepted=true;return {...draft,progress:{...draft.progress,coins:view.coins},revision:draft.revision}},{requireDurable:true});
+     if(!accepted||!receipt.committed)return false;
+     applySaved(receipt.snapshot,true);
+     meta=readMeta();battle.setLevels(meta.levels);battle.setStage(meta.stage);battle.setStars(window.SideviewSummon.stars());window.SideviewSummon.render();stageHeading();
+     levelKey='';renderedState='';return true;
    }finally{actionPending=false;storageNote();energy();sync()}
  }
 };
