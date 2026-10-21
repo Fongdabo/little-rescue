@@ -49,12 +49,14 @@
       <button class="pause-button" id="pauseBtn" disabled aria-label="หยุดพัก" title="หยุดพัก (P / Escape)">Ⅱ</button>
     </div>
     <div class="battlefield" id="battlefield">
+      <button type="button" class="lobby-open" id="lobbyOpenBtn" hidden><span aria-hidden="true">🗺️</span> เลือกด่าน · เริ่มภารกิจ</button>
       <canvas id="game" width="1200" height="520" aria-label="ฐานทีมทางซ้าย ปะทะฐาน Mushroom ทางขวา เลือกเรียกเพื่อนที่แผงด้านล่าง"></canvas>
       <div class="base-hud home"><span>รถฐานทีมเรา <b id="homeText">360 / 360</b></span><div class="hp-track"><i id="homeFill"></i></div></div>
       <div class="base-hud enemy"><span>ฐาน Mushroom <b id="enemyText">500 / 500</b></span><div class="hp-track"><i id="enemyFill"></i></div></div>
       <div class="mission-pill" id="missionPill">ทำลายฐาน Mushroom เพื่อช่วยเพื่อน</div>
       <div class="overlay" id="overlay">
         <section class="modal" id="modal" aria-labelledby="modalTitle" role="dialog">
+          <button type="button" class="modal-close" id="modalCloseBtn" aria-label="ปิดหน้านี้" title="ปิด (Escape)" hidden>✕</button>
           <span class="modal-kicker" id="modalKicker">บทเล็ก ๆ ของมิตรภาพ</span>
           <div class="rescue-portrait"><img src="assets/heroes-v2/hero-helper-puipan.webp" alt="เพื่อนที่รอการช่วยเหลือ"></div>
           <h2 id="modalTitle">พาเพื่อนกลับบ้าน</h2>
