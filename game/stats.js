@@ -4,7 +4,9 @@
    Everything here is best effort: offline, blocked, or a missing endpoint just drops the events silently. */
 (()=>{
  'use strict';
- const KEY='little-rescue-stats-v1',ENDPOINT='api/stats',BUILD='1.11.1';
+ const KEY='little-rescue-stats-v1',ENDPOINT='api/stats';
+ // The build comes from app.js so a release never has to remember this file.
+ const build=()=>{try{return window.SideviewApp?.version||null}catch{return null}};
  const pad=n=>String(n).padStart(2,'0');
  const dayOf=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
  function randomHex(n){
@@ -30,7 +32,7 @@
  }
  function flush(){
   if(state.off||!queue.length||navigator.onLine===false||!/^https?:$/.test(location.protocol))return;
-  const body=JSON.stringify({v:1,pid:state.id,sid:session,build:BUILD,age:age(),events:queue.splice(0,queue.length)});
+  const body=JSON.stringify({v:1,pid:state.id,sid:session,build:build(),age:age(),events:queue.splice(0,queue.length)});
   try{
    const url=new URL(ENDPOINT,document.baseURI).href;
    if(navigator.sendBeacon?.(url,new Blob([body],{type:'text/plain'})))return;

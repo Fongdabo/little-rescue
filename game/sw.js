@@ -1,6 +1,6 @@
 /* Buildless, scope-isolated PWA. No game save is stored in this cache. */
 'use strict';
-const BUILD_ID='pwa-1.12.0';
+const BUILD_ID='pwa-1.12.1';
 const SCOPE=self.registration.scope;
 const PREFIX='little-rescue-pwa:'+SCOPE+':';
 const CACHE_NAME=PREFIX+BUILD_ID;
@@ -72,6 +72,8 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v190/index.html",
   "recover-v1120/",
   "recover-v1120/index.html",
+  "recover-v1121/",
+  "recover-v1121/index.html",
   "recover-v191/",
   "recover-v191/index.html",
   "recover-v1110/",
