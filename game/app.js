@@ -1,0 +1,243 @@
+/* Local prototype UI. Rendering uses copied, replaceable assets. No network APIs. */
+'use strict';
+(() => {
+const {CONFIG,UNITS,ENEMIES,CLASSES,EnergyBank,Battle}=window.Sideview;
+const $=id=>document.getElementById(id);
+const storageKey='little-rescue-sideview-save-v2';
+let storage=null;try{storage=window.localStorage}catch{}
+const saves=new window.SideviewSave.SaveStore({storage,locks:navigator.locks||null,key:storageKey,legacyKey:'little-rescue-sideview-save-v1',eventTarget:window});
+// Start migration before loading assets; every persistent control waits for it.
+const initialization=saves.initialize();
+const initial=saves.read(),bank=new EnergyBank(initial.energy),battle=new Battle(bank,{...initial.progress});
+battle.setRoster(initial.roster);
+const pwaAssetMap={"background.png":"background.webp","heroes-v2/hero-guard-fongsabo.png":"heroes-v2/hero-guard-fongsabo.webp","heroes-v2/hero-agile-sailom.png":"heroes-v2/hero-agile-sailom.webp","heroes-v2/hero-ranged-maletdao.png":"heroes-v2/hero-ranged-maletdao.webp","heroes-v2/hero-helper-puipan.png":"heroes-v2/hero-helper-puipan.webp","heroes-v2/hero-mage-lukoak.png":"heroes-v2/hero-mage-lukoak.webp","enemies-v2/enemy-guard.png":"enemies-v2/enemy-guard.webp","enemies-v2/enemy-agile.png":"enemies-v2/enemy-agile.webp","enemies-v2/enemy-ranged.png":"enemies-v2/enemy-ranged.webp","enemies-v2/enemy-helper.png":"enemies-v2/enemy-helper.webp","enemies-v2/enemy-mage.png":"enemies-v2/enemy-mage.webp"};
+const assetURL=file=>window.EMBEDDED_ASSETS?.[file]||'assets/'+(pwaAssetMap[file]||file);
+const canvas=$('game'),ctx=canvas.getContext('2d');
+const images={},cards=[];
+let ready=false,last=performance.now(),toastUntil=0,renderedState='',lastRun=0,lastClaim=false,actionPending=false,appliedRevision=initial.revision;
+const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
+let reduced=motionPreference.matches;
+motionPreference.addEventListener?.('change',event=>{reduced=event.matches});
+const animator=new window.SideviewAnimator(),rigs=new Map(),frameCosts=[];
+const artCatalog=window.SideviewArt||{};
+const roleIcons=window.SideviewRoleIcons,vfx=new window.SideviewVFX();
+let renderedActors=[],renderedProjectiles=[],renderedBases=[],shotOrigins=new Map(),renderedRun=-1;
+// Preview geometry is independent of combat positions and editable in one place.
+const VEHICLE_VISUAL={width:500,nativeWidth:640,nativeHeight:420,groundY:375,centerOffset:120,doorX:192,doorSillY:313,muzzleX:320,muzzleY:75};
+const typeInfo=id=>({stone:{name:'หินอุ่น',color:'#a57542',glyph:'●'},star:{name:'แสงดาว',color:'#8178bc',glyph:'✦'},wind:{name:'สายลม',color:'#4c9c91',glyph:'≈'}}[id]||{name:'',color:'#807b66',glyph:''});
+const roleName=unit=>unit.className||unit.role||'เพื่อนร่วมทีม';
+function storageNote(){$('storageNote').textContent=saves.writable?'บันทึกคุกกี้ดาว เหรียญ เพื่อน และทีมร่วมกันในแท็บที่เปิดไฟล์/เว็บเดียวกัน อ่านข้อมูลล่าสุดก่อนใช้พลังหรือรับรางวัล โหลดใหม่ยุติรอบเดิมโดยไม่คืนค่าเข้า ไม่ซิงก์ข้ามเครื่อง/เบราว์เซอร์':'โหมดเฉพาะหน้าที่เปิด: ที่เก็บข้อมูลหรือการล็อกเซฟร่วมกันไม่พร้อม จึงไม่เขียนทับเซฟเดิม ความคืบหน้าใหม่จะหายเมื่อปิดหน้านี้'}
+function applySaved(snapshot,force=false){
+ if(!force&&snapshot.revision<appliedRevision)return;
+ appliedRevision=snapshot.revision;bank.value=snapshot.energy.value;bank.anchor=snapshot.energy.anchor;bank.refresh();
+ battle.progress.coins=snapshot.progress.coins;battle.progress.rescued=snapshot.progress.rescued;
+ if(battle.state==='ready')battle.setRoster(snapshot.roster);
+}
+async function savedAction(action,options={}){
+ if(!ready||actionPending||!window.SideviewPWA.canAct())return false;
+ const previousState=battle.state,previousClaim=battle.claimed;
+ actionPending=true;sync();let accepted=false;
+ try{
+   const receipt=await saves.mutate(draft=>{
+     applySaved(draft,true);accepted=action()!==false;
+     if(!accepted)return false;
+     return {...draft,energy:bank.snapshot(),progress:{...battle.progress},roster:options.roster?[...battle.selectedRoster]:draft.roster};
+   });
+   applySaved(receipt.snapshot);return accepted;
+ }catch{toast('บันทึกไม่สำเร็จ โปรดตรวจสถานะเซฟด้านล่าง');return false}
+ finally{actionPending=false;storageNote();energy();sync();if(accepted&&(battle.state!==previousState||battle.claimed!==previousClaim)){if(battle.state==='running')$('pauseBtn').focus();else if(battle.state==='won'&&battle.claimed)$('replayBtn').focus()}}
+}
+function toast(message){$('toast').textContent=message;$('toast').classList.add('show');toastUntil=performance.now()+2300}
+function energy(){bank.refresh();$('energyText').textContent=`${bank.value} / ${CONFIG.energyMax}`;const seconds=Math.max(0,Math.ceil((bank.anchor+CONFIG.refillMs-Date.now())/1000));$('energyTimer').textContent=bank.value>=CONFIG.energyMax?'เสบียงเต็มแล้ว':`ฟื้นอีก 1 ชิ้นใน ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`}
+function mode(){const auto=battle.mode==='auto';['autoBtn','readyAutoBtn'].forEach(id=>$(id).setAttribute('aria-pressed',String(auto)));['manualBtn','readyManualBtn'].forEach(id=>$(id).setAttribute('aria-pressed',String(!auto)));$('modeHint').textContent=auto?'Auto · ทีมเรียกเพื่อนให้ ด้วยต้นทุนและคูลดาวน์เดียวกัน':'Manual · แตะเรียกเพื่อนเอง ทีมเดินและโจมตีอัตโนมัติ'}
+function setMode(value){battle.setMode(value);mode()}
+function summon(index){if(!battle.summon(index)&&battle.state==='running')toast(battle.flux<UNITS[index].cost?'ละอองใบไม้ยังไม่พอ รอฟื้นสักครู่':'เพื่อนกำลังเตรียมตัว หรือทีมในสนามเต็มแล้ว');sync()}
+UNITS.forEach((u,index)=>{
+ const btn=document.createElement('button');btn.className='unit-card';btn.disabled=true;btn.dataset.unit=String(index);btn.setAttribute('aria-label',`เรียก ${u.name} ใช้ละอองใบไม้ ${u.cost}`);
+ btn.innerHTML=`<span class="unit-key">${index+1}</span><span class="cooldown"></span><img src="${assetURL(u.asset)}" alt=""><span class="unit-name">${u.name}</span><span class="unit-role">${u.role||'เพื่อนร่วมทีม'}</span><span class="unit-cost">❧ ${u.cost}</span><span class="availability">พร้อมเมื่อเริ่มด่าน</span>`;
+ const type=typeInfo(u.type);btn.title=`${roleName(u)} · ${type.name} · HP ${u.hp} · ระยะ ${u.range} (ค่าทดลอง)`;
+ const badge=document.createElement('span');badge.className='unit-type type-'+u.type;badge.textContent=type.glyph+' '+type.name;btn.querySelector('.unit-name').append(badge);
+ btn.querySelector('.unit-role').textContent=roleName(u);
+ const classIcon=document.createElement('img');classIcon.className='unit-class-icon';classIcon.src=roleIcons.get(u.classId).dataURL;classIcon.alt=roleName(u);btn.append(classIcon);
+ btn.addEventListener('click',()=>summon(index));$('unitGrid').append(btn);cards.push(btn);
+ const choice=document.createElement('button');choice.className='roster-choice';choice.dataset.roster=String(index);choice.setAttribute('aria-pressed',String(battle.selectedRoster.includes(index)));choice.innerHTML=`<img src="${assetURL(u.asset)}" alt=""><span>${u.name}</span>`;choice.addEventListener('click',()=>savedAction(()=>{const roster=battle.selectedRoster.includes(index)?battle.selectedRoster.filter(i=>i!==index):[...battle.selectedRoster,index].sort((a,b)=>a-b);if(!roster.length){toast('เลือกเพื่อนร่วมทีมอย่างน้อย 1 ตัว');return false}return battle.setRoster(roster)},{roster:true}));$('rosterPicker').append(choice);
+});
+document.querySelectorAll('.roster-choice').forEach((button,index)=>{const unit=UNITS[index],type=typeInfo(unit.type),label=document.createElement('small');label.className='choice-role';label.textContent=roleName(unit)+' '+type.glyph;const icon=document.createElement('img');icon.className='choice-class-icon';icon.src=roleIcons.get(unit.classId).dataURL;icon.alt='';label.prepend(icon);button.append(label);button.title=`${roleName(unit)} · สาย${type.name}`;button.setAttribute('aria-label',`${unit.name} · ${roleName(unit)} · สาย${type.name}`)});
+const typeRule=document.createElement('p');typeRule.className='type-rule';typeRule.innerHTML=`<b>หินอุ่น › แสงดาว › สายลม › หินอุ่น</b><br>ได้เปรียบ ×${CONFIG.typeAdvantageMultiplier.toFixed(2)} · เสียเปรียบ ×${CONFIG.typeDisadvantageMultiplier.toFixed(2)} · ไม่บังคับครบสาย`;$('rosterPicker').after(typeRule);
+const roleHelp=document.createElement('p');roleHelp.className='role-help';roleHelp.textContent='ทั้งสองฝ่ายใช้ห้าสาย: รับ · ว่องไว · ยิงไกล · ช่วยเหลือ · เวท โดยฮีลเป็นทักษะในสายช่วยเหลือ ภาพหันเข้าหาคู่ต่อสู้ ธาตุหินอุ่น/แสงดาว/สายลมเป็นอีกระบบแยกจากสาย เลือกลงทีม 1–5 ตัว ตัวเลขทุกค่าเป็นตัวอย่างที่แก้ได้';;document.querySelector('.help-copy').prepend(roleHelp);
+$('manualBtn').addEventListener('click',()=>setMode('manual'));
+$('autoBtn').addEventListener('click',()=>setMode('auto'));
+$('readyManualBtn').addEventListener('click',()=>setMode('manual'));
+$('readyAutoBtn').addEventListener('click',()=>setMode('auto'));
+$('refillBtn').addEventListener('click',()=>savedAction(()=>{bank.add(CONFIG.energyMax);toast('เติมคุกกี้ดาวฟรีแล้ว · สำหรับทดลอง');return true}));
+function togglePause(){if(battle.pause()){sync();if(battle.state==='paused')$('actionBtn').focus()}}
+$('pauseBtn').addEventListener('click',togglePause);
+$('actionBtn').addEventListener('click',()=>{
+ if(!ready)return;
+ if(battle.state==='paused'){battle.pause();sync();return}
+ savedAction(()=>{
+   if(battle.state==='ready'){const ok=battle.start();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
+   if(battle.state==='won'){const reward=battle.claimReward();if(reward)toast(reward.friend?'รับรางวัลแล้ว เพื่อนเข้าร่วมคอลเลกชันแล้ว!':'รับรางวัลรอบนี้แล้ว');return Boolean(reward)}
+   if(battle.state==='lost'){const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}
+   return false;
+ });
+});
+$('replayBtn').addEventListener('click',()=>savedAction(()=>{const ok=battle.replay();if(!ok)toast('คุกกี้ดาวไม่พอ เติมฟรีเพื่อทดลองได้');return ok}));
+$('prepareBtn').addEventListener('click',()=>{if(!ready||actionPending||!window.SideviewPWA.canAct())return;if(battle.prepareReplay()){applySaved(saves.read());renderedState='';sync();$('rosterPicker').querySelector('button').focus()}});
+document.addEventListener('keydown',event=>{
+ if(event.repeat||event.ctrlKey||event.altKey||event.metaKey||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
+ if(event.key==='p'||event.key==='P'||event.key==='Escape'){event.preventDefault();togglePause()}
+ if(/^[1-5]$/.test(event.key)){event.preventDefault();summon(Number(event.key)-1)}
+});
+document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden&&['running','advancing'].includes(battle.state)){battle.pause();sync()}});
+function modal(){
+ const state=battle.state,claimed=battle.claimed;
+ if(renderedState===state&&lastRun===battle.runId&&lastClaim===claimed)return;
+ renderedState=state;lastRun=battle.runId;lastClaim=claimed;
+ $('overlay').hidden=['running','advancing'].includes(state);$('modal').classList.toggle('won',state==='won');$('rewardArea').hidden=state!=='won';$('replayBtn').hidden=!(state==='won'&&claimed);$('actionBtn').hidden=state==='won'&&claimed;
+ $('preflightControls').hidden=state!=='ready';
+ $('prepareBtn').hidden=!(state==='lost'||state==='won'&&claimed);
+ if(state==='ready'){$('modalKicker').textContent=battle.runId?'พร้อมออกเดินทางอีกครั้ง':'บทเล็ก ๆ ของมิตรภาพ';$('modalTitle').textContent='พาเพื่อนกลับบ้าน';$('modalCopy').innerHTML='กางรถเป็นฐาน ส่งทีมไปช่วยเพื่อนที่ฐาน Mushroom<br>ชนะแล้วพับกลับเป็นรถ ไปรับเพื่อนกลับบ้าน';$('modalNote').textContent='เลือกทีมและโหมดได้ก่อนเริ่ม · ยังไม่เสียคุกกี้ดาว';$('actionBtn').textContent=`เริ่มภารกิจ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;return}
+ if(state==='running'||state==='advancing')$('pauseBtn').focus();
+ if(state==='advancing')toast('ชนะแล้ว! รถฐานกำลังไปรับเพื่อน');
+ if(state==='paused'){
+   $('modalKicker').textContent='พักหายใจสักครู่';$('modalTitle').textContent='ทีมกำลังรอคุณ';$('modalCopy').innerHTML='การต่อสู้ เวลา และละอองใบไม้หยุดแล้ว<br>กลับมาเล่นต่อได้โดยไม่เสียคุกกี้ดาวเพิ่ม';$('actionBtn').textContent='เล่นต่อ →';$('modalNote').textContent='P / Escape เพื่อเล่นต่อ';
+ }else if(state==='won'){
+   $('modalKicker').textContent='ภารกิจสำเร็จ';$('modalTitle').textContent=claimed?'กลับบ้านด้วยกัน!':'ช่วยเพื่อนได้แล้ว!';$('modalCopy').textContent=claimed?'รางวัลรอบนี้รับเรียบร้อยแล้ว':'รางวัลสาธิต รับได้หนึ่งครั้งต่อรอบที่ชนะ';
+   const first=!battle.progress.rescued;
+   $('rewardArea').innerHTML=`<div class="reward-item"><span class="reward-icon">◉</span><b>เหรียญ ${CONFIG.rewardCoins}</b><small>ไอเทมจำลอง</small></div><div class="reward-item"><span class="reward-icon cookie-icon">★</span><b>คุกกี้ดาว ${CONFIG.rewardCookies}</b><small>พลังงานเข้าด่าน</small></div><div class="reward-item"><img src="${assetURL(UNITS[3].asset)}" alt="เพื่อน${UNITS[3].name}"><b>${claimed?'อยู่ในทีมแล้ว':first?`เพื่อนที่ช่วยได้ · ${UNITS[3].name}`:'เพื่อนอยู่ในทีมแล้ว'}</b><small>${claimed?'รับรางวัลแล้ว':first?'เพิ่มในคอลเลกชันครั้งแรก':'เล่นซ้ำไม่เพิ่มเพื่อนซ้ำ'}</small></div>`;
+   $('actionBtn').textContent='รับรางวัลและพาเพื่อนเข้าทีม →';if(!first&&!claimed)$('actionBtn').textContent='รับรางวัลรอบนี้ →';
+   $('modalNote').textContent=`เหรียญสะสม: ${battle.progress.coins} · ${saves.writable?'บันทึกความคืบหน้าในเบราว์เซอร์นี้':'ความคืบหน้าอยู่เฉพาะหน้าที่เปิด'}`;
+ }else if(state==='lost'){
+   $('modalKicker').textContent='ยังมีครั้งต่อไป';$('modalTitle').textContent='ตั้งทีมแล้วลองอีกครั้ง';$('modalCopy').innerHTML=(battle.homeHP<=0?'รถฐานทีมเราถูกทำลาย':'หมดเวลาภารกิจ')+'<br>ลองเรียกเพื่อนให้เร็วขึ้น หรือเลือก Auto';$('actionBtn').textContent=`เล่นใหม่ · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น →`;$('modalNote').textContent='รอบนี้ไม่ได้รับรางวัล · ค่าทั้งหมดเป็นตัวอย่าง';
+ }
+ if(state==='won'||state==='lost')(claimed?$('replayBtn'):$('actionBtn')).focus();
+}
+function sync(){
+ const pwaBlocked=!ready||actionPending||!window.SideviewPWA.canAct();$('actionBtn').disabled=pwaBlocked;$('replayBtn').disabled=pwaBlocked;$('prepareBtn').disabled=pwaBlocked;$('refillBtn').disabled=pwaBlocked;
+ document.querySelectorAll('.roster-choice').forEach((el,i)=>{el.disabled=!ready||actionPending||battle.state!=='ready';el.setAttribute('aria-pressed',String(battle.selectedRoster.includes(i)))});
+ $('homeText').textContent=`${Math.ceil(battle.homeHP)} / ${CONFIG.homeHP}`;$('enemyText').textContent=`${Math.ceil(battle.enemyHP)} / ${CONFIG.enemyHP}`;
+ $('homeFill').style.width=`${Math.max(0,battle.homeHP/CONFIG.homeHP*100)}%`;$('enemyFill').style.width=`${Math.max(0,battle.enemyHP/CONFIG.enemyHP*100)}%`;
+ $('fluxText').textContent=`${Math.floor(battle.flux)} / ${CONFIG.fluxMax}`;$('fluxFill').style.width=`${battle.flux/CONFIG.fluxMax*100}%`;
+ const t=Math.max(0,Math.ceil(battle.remaining));$('timeText').textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
+ $('pauseBtn').disabled=!['running','paused','advancing'].includes(battle.state);$('pauseBtn').textContent=battle.state==='paused'?'▶':'Ⅱ';$('pauseBtn').setAttribute('aria-label',battle.state==='paused'?'เล่นต่อ':'หยุดพัก');
+ $('teamCount').textContent=`${battle.progress.rescued?1:0} / 1`;
+ $('killText').textContent=battle.state==='ready'?'หยุดพักได้ทุกเวลา':`ป้องกันศัตรูได้ ${battle.kills} ตัว`;
+ const victoryText={celebrate:'ชนะแล้ว! ฉลองก่อนกลับบ้าน',boarding:'ทุกคนวิ่งขึ้นรถ กลับด้วยกัน',ready:'ขึ้นครบแล้ว เตรียมออกเดินทาง',depart:'กลับบ้านด้วยกัน!',won:'ภารกิจสำเร็จ'};
+ $('missionPill').textContent=battle.state==='won'?'ภารกิจสำเร็จ · เพื่อนปลอดภัยแล้ว':battle.state==='advancing'?(victoryText[battle.victoryPhase]||'กำลังรับเพื่อนขึ้นรถ'):battle.state==='ready'?'รถเดินทาง พร้อมจอดส่งทีม':battle.baseDeployment<1?'กำลังกางโครงสร้างรถฐาน':'รถฐานจอดส่งทีมไปช่วยเพื่อน';
+ cards.forEach((btn,i)=>{const cd=battle.cooldowns[i]||0,inTeam=battle.selectedRoster.includes(i);btn.disabled=!inTeam||!ready||battle.state!=='running'||cd>0||battle.flux<UNITS[i].cost||battle.allies.length>=CONFIG.maxAllies;
+   btn.querySelector('.availability').textContent=!inTeam?'ไม่อยู่ในทีม':battle.state==='ready'?'พร้อมเมื่อเริ่มด่าน':battle.state==='paused'?'พักการต่อสู้':cd>.05?`อีก ${cd.toFixed(1)} วินาที`:battle.flux<UNITS[i].cost?'รอละอองใบไม้':battle.state==='running'?'พร้อมเรียก':'จบภารกิจ';
+   btn.querySelector('.cooldown').style.transform=`scaleY(${Math.min(1,cd/(UNITS[i].cooldown||4))})`;
+ });modal();window.SideviewPWA.refresh?.();
+}
+function round(x,y,w,h,r,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function draw(){
+ const W=1200,H=520,compress=(canvas.clientWidth/canvas.clientHeight)/(W/H);ctx.clearRect(0,0,W,H);
+ const sceneScale=Math.max(1,compress),foot=414;
+ if(images.background)ctx.drawImage(images.background,0,414-492*sceneScale,1200,675*sceneScale);else{ctx.fillStyle='#bad6b0';ctx.fillRect(0,0,W,H)}
+ ctx.fillStyle='#3c624117';ctx.fillRect(0,410,W,110);
+ renderedActors=[];renderedProjectiles=[];renderedBases=[];
+ if(renderedRun!==battle.runId||battle.state==='ready'){shotOrigins.clear();renderedRun=battle.runId}
+ const sprite=(im,x,y,w,h,flip=false,alpha=1)=>{if(!im)return;ctx.save();ctx.globalAlpha=alpha;ctx.translate(x,y);if(flip)ctx.scale(-1,1);ctx.drawImage(im,-w/2,-h*compress,w,h*compress);ctx.restore()};
+ const character=(asset,x,y,w,h,pose={},alpha=1)=>{
+  const rig=rigs.get(asset),facing=pose.facing===-1?-1:1,sourceFacing=artCatalog[asset]?.sourceFacing||1;
+  const options={x,y,width:w,height:h*compress,phase:'idle',progress:animator.time*.55%1,time:animator.time,reduced,facing,...pose};
+  if(!rig){sprite(images[asset],x,y,w,h,facing!==sourceFacing,alpha);return{options,rig:null}}
+  ctx.save();ctx.globalAlpha=alpha;window.SideviewAnimation.draw(ctx,rig,options);ctx.restore();return{options,rig};
+ };
+ const vs=VEHICLE_VISUAL.width/VEHICLE_VISUAL.nativeWidth,vehicleBaseX=battle.vehicleX??80,vehicleCenter=vehicleBaseX+VEHICLE_VISUAL.centerOffset,vehicleBottom=foot+(VEHICLE_VISUAL.nativeHeight-VEHICLE_VISUAL.groundY)*vs*compress;
+ const nativePoint=(center,x,y,flip=false)=>({x:center+(x-320)*vs*(flip?-1:1),y:foot+(y-VEHICLE_VISUAL.groundY)*vs*compress});
+ const vehicleMuzzle=nativePoint(vehicleCenter,VEHICLE_VISUAL.muzzleX,VEHICLE_VISUAL.muzzleY),enemyMuzzle=nativePoint(1120-VEHICLE_VISUAL.centerOffset,VEHICLE_VISUAL.muzzleX,VEHICLE_VISUAL.muzzleY,true);
+ const vehicleDoor=nativePoint(vehicleCenter,VEHICLE_VISUAL.doorX,VEHICLE_VISUAL.doorSillY);
+ const cannonById=new Map((battle.baseCannons||[]).map(c=>[c.id,c]));
+ const baseRecord=(id,team,muzzle,x)=>({id,team,faction:team?'hero':'enemy',classId:'base-cannon',facing:team?1:-1,muzzle,foot:{x,y:foot},alpha:1,hp:team?battle.homeHP:battle.enemyHP,cooldown:cannonById.get(id)?.cooldown??0});
+ renderedBases.push({...baseRecord('ally-base-cannon',true,vehicleMuzzle,vehicleBaseX),vehicle:true,visualCenter:vehicleCenter,drawWidth:VEHICLE_VISUAL.width,ground:{x:vehicleCenter,y:foot},door:vehicleDoor,spriteBounds:{x:vehicleCenter-VEHICLE_VISUAL.width/2,y:vehicleBottom-VEHICLE_VISUAL.nativeHeight*vs*compress,width:VEHICLE_VISUAL.width,height:VEHICLE_VISUAL.nativeHeight*vs*compress}},baseRecord('enemy-base-cannon',false,enemyMuzzle,1120));
+ const vehicle=()=>{const d=battle.baseDeployment||0;sprite(images['base-vehicle-large-v1.svg'],vehicleCenter,vehicleBottom,VEHICLE_VISUAL.width,VEHICLE_VISUAL.nativeHeight*vs,false,1-d);if(d>0)sprite(images['base-deployed-large-v1.svg'],vehicleCenter,vehicleBottom,VEHICLE_VISUAL.width,VEHICLE_VISUAL.nativeHeight*vs,false,d)};
+ // The enemy tower remains static; only its matching support cannon is new.
+ sprite(images['cannon-support-v1.svg'],1120-VEHICLE_VISUAL.centerOffset,vehicleBottom,VEHICLE_VISUAL.width,VEHICLE_VISUAL.nativeHeight*vs,true,1);
+ const doorOpen=battle.victorySnapshot?.vehicleAction==='wait';
+ const doorway=foreground=>{
+  const topLeft=nativePoint(vehicleCenter,140.5,174),width=103*vs,height=139*vs;
+  ctx.save();ctx.translate(topLeft.x,topLeft.y);ctx.scale(1,compress);
+  ctx.beginPath();ctx.roundRect(0,0,width,height,13*vs);
+  if(!foreground){ctx.fillStyle='#435b48';ctx.fill();ctx.fillStyle='#667357';ctx.fillRect(10*vs,13*vs,83*vs,9*vs)}
+  else{ctx.strokeStyle='#957046';ctx.lineWidth=4*vs;ctx.stroke();ctx.strokeStyle='#edca88';ctx.lineWidth=3*vs;ctx.beginPath();ctx.moveTo(8*vs,height-2*vs);ctx.lineTo(width-8*vs,height-2*vs);ctx.stroke()}
+  ctx.restore();
+ };
+ // Returning friends stay in front of the vehicle until they enter its door.
+ vehicle();if(doorOpen)doorway(false);
+ if(!['advancing','won'].includes(battle.state)&&!(battle.state==='paused'&&battle.victoryPhase)){
+  const asset=UNITS[3].asset,ratio=rigs.get(asset)?.aspect||1,cageWidth=Math.min(60,50*ratio);character(asset,1090,315,cageWidth,cageWidth/ratio,{facing:-1},.96);
+  ctx.strokeStyle='#8f775977';ctx.lineWidth=3;for(let x=1062;x<=1118;x+=14){ctx.beginPath();ctx.moveTo(x,249);ctx.lineTo(x,316);ctx.stroke()}round(1057,247,68,5,2,'#927757');round(1057,314,68,5,2,'#927757');
+ }
+ const all=[...battle.allies.map(a=>({...a,team:true})),...(battle.victoryActors||[]).filter(a=>a.isRescuedFriend).map(a=>({...a,team:true})),...battle.enemies.map(e=>({...e,team:false})),...animator.ghosts()],actorById=new Map();
+ all.sort((a,b)=>a.x-b.x).forEach((u,i)=>{
+  const serial=Number(String(u.id).split('-').at(-1))||i,spec=(u.team?UNITS:ENEMIES)[u.index||0],asset=u.asset||spec.asset,rig=rigs.get(asset);
+  if(u.boarded)return;
+  const baseHeight=u.team?({guard:110,agile:116,ranged:108,helper:94,mage:112}[u.classId]||108):100;
+  const boarding=Math.max(0,Math.min(1,u.boardingProgress||0)),rescue=u.isRescuedFriend?Math.max(0,Math.min(1,u.rescueProgress||0)):1,ratio=rig?.aspect||1,width=Math.min(155,baseHeight*ratio)*(1-boarding*.25)*(u.isRescuedFriend?.62+.38*rescue:1),height=width/ratio;
+  const pose=u.phase==='defeat'?{phase:'defeat',progress:u.progress,time:animator.time}:animator.pose(u);if(pose.hidden)return;
+  const naturalFoot=u.isRescuedFriend?315+(foot-315)*rescue:foot+(serial%3)*9;
+  // Each lane reaches the same real door sill rather than a fixed fake rise.
+  const y=naturalFoot+(vehicleDoor.y-naturalFoot)*boarding-(pose.hop||0)*height*compress;
+  ctx.fillStyle=u.team?'#426c3b38':'#78513a34';ctx.beginPath();ctx.ellipse(u.x,y+4,33,7,0,0,7);ctx.fill();
+  const facing=u.facing===-1?-1:1;
+  const alpha=(pose.phase==='defeat'?Math.max(0,1-pose.progress*pose.progress):1)*(1-boarding),drawn=character(asset,u.x,y,width,height,{...pose,facing},alpha);
+  const record={id:u.id,team:Boolean(u.team),faction:u.team?'hero':'enemy',classId:u.classId||spec.classId,className:u.className||spec.className,kind:u.kind,asset,facing,sourceFacing:artCatalog[asset]?.sourceFacing||1,profile:artCatalog[asset]?.profile||null,phase:pose.phase,victoryAction:u.victoryAction||null,boardingProgress:boarding,spriteBounds:{x:u.x-width/2,y:y-height*compress,width,height:height*compress},foot:{x:u.x,y},alpha,hpBar:null,glyph:null,muzzle:drawn.rig?window.SideviewAnimation.getAttachment(drawn.rig,drawn.options,'muzzle'):null};
+  actorById.set(u.id,{...record,unit:u});renderedActors.push(record);
+  if(u.phase==='defeat'||u.victoryAction)return;
+  const max=u.maxHP||u.maxHp||100,hp=u.hp/max,bar={x:u.x-26,y:y-height*compress-13,width:52,height:5};round(bar.x,bar.y,bar.width,bar.height,3,'#fff5d8');round(bar.x,bar.y,52*Math.max(0,Math.min(1,hp)),5,3,u.team?'#6caa77':'#d58467');record.hpBar={...bar,fillDirection:'left-to-right',value:u.hp,max};
+  const iconSize=12*W/Math.max(1,canvas.clientWidth),icon={classId:u.classId||spec.classId,x:u.x-26-iconSize*.85,y:bar.y-3*compress,size:iconSize,mirrored:false};ctx.save();ctx.translate(icon.x,icon.y);ctx.scale(1,compress);roleIcons.draw(ctx,icon.classId,0,0,iconSize);ctx.restore();record.classIcon=icon;
+ });
+ for(const base of renderedBases)actorById.set(base.id,base);
+ const flying=new Set();
+ (battle.projectiles||[]).forEach(p=>{
+  flying.add(p.id);const shooter=actorById.get(p.sourceId),target=actorById.get(p.targetId),t=p.flightProgress||0;
+  if(!shotOrigins.has(p.id)){const muzzle=shooter?.muzzle||{x:p.fromX,y:foot+(p.fromY-foot)*compress};shotOrigins.set(p.id,{x:muzzle.x,y:muzzle.y,engineFromX:p.fromX,attachmentAtLaunch:{...muzzle}})}
+  const origin=shotOrigins.get(p.id),x=(p.x??p.fromX)+(origin.x-p.fromX)*(1-t),targetY=target?target.foot.y-target.spriteBounds.height*.43:foot+(p.targetY-foot)*compress,y=origin.y+(targetY-origin.y)*t,direction=Math.sign(p.targetX-p.fromX)||(p.friendly?1:-1),type=typeInfo(p.type);
+
+  renderedProjectiles.push({id:p.id,sourceId:p.sourceId,targetId:p.targetId,friendly:p.friendly,direction,x,y,origin:{...origin},flightProgress:t,engineX:p.x,engineFromX:p.fromX,targetX:p.targetX});
+ });
+ for(const id of shotOrigins.keys())if(!flying.has(id))shotOrigins.delete(id);
+ vfx.draw(ctx,{actors:[...renderedActors,...renderedBases],projectiles:renderedProjectiles,compress,foot,reduced});
+ if(doorOpen)doorway(true);
+ if(battle.state==='ready'){for(const [spec,x,facing]of [[UNITS[0],220,1],[ENEMIES[0],965,-1]]){const ratio=rigs.get(spec.asset)?.aspect||1;character(spec.asset,x,428,Math.min(155,115*ratio),Math.min(155,115*ratio)/ratio,{facing})}}
+
+}
+function frame(now){const started=performance.now(),dt=Math.min(.1,Math.max(0,(now-last)/1000));last=now;if(ready)battle.update(dt);animator.update(battle,dt);vfx.update(battle,dt);sync();draw();const cost=performance.now()-started;frameCosts.push(cost);if(frameCosts.length>600)frameCosts.shift();if(now>toastUntil)$('toast').classList.remove('show');requestAnimationFrame(frame)}
+const assetFiles=[...new Set(['background.png','background-clean-left-v1.png','base-vehicle-large-v1.svg','base-deployed-large-v1.svg','cannon-support-v1.svg',...UNITS.map(u=>u.asset),...ENEMIES.map(u=>u.asset)])];
+function composeSceneBackground(){
+ const original=images.background,patch=images['background-clean-left-v1.png'];
+ const layer=document.createElement('canvas');layer.width=original.naturalWidth;layer.height=original.naturalHeight;
+ const brush=layer.getContext('2d');brush.drawImage(original,0,0);
+ // Native x<=350 contains the entire removed ally building. Feather only forest.
+ // Original pixels from x430 onward remain byte-for-byte in this render layer.
+ brush.drawImage(patch,0,0,350,patch.naturalHeight,0,0,350,layer.height);
+ for(let x=350;x<430;x+=2){brush.globalAlpha=1-(x-350)/80;brush.drawImage(patch,x,0,2,patch.naturalHeight,x,0,2,layer.height)}
+ brush.globalAlpha=1;images.background=layer;
+}
+function initializeRigs(){for(const spec of [...UNITS,...ENEMIES])rigs.set(spec.asset,window.SideviewAnimation.createRig(images[spec.asset],{id:spec.id,role:spec.kind,index:spec.index??UNITS.indexOf(spec),...artCatalog[spec.asset]}))}
+Promise.all([initialization,window.SideviewPWA.gateReady,roleIcons.preload(),...assetFiles.map(file=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{images[file==='background.png'?'background':file==='mushroom.png'?'mushroom':file]=img;resolve()};img.onerror=()=>reject(new Error(file));img.src=assetURL(file)}))]).then(([receipt])=>{composeSceneBackground();initializeRigs();applySaved(receipt.snapshot,true);ready=true;renderedState='';document.body.classList.add('loaded');storageNote();energy();sync()}).catch(error=>{$('modalCopy').textContent='เปิดข้อมูลเกมไม่สำเร็จ: '+error.message+' โปรดแตกไฟล์ทั้งโฟลเดอร์แล้วเปิด index.html อีกครั้ง';$('actionBtn').disabled=true});
+storageNote();
+// Read-only diagnostic snapshots for independent QA; no force-win/debug buttons.
+$('balanceNote').textContent=`ตัวเลขทั้งหมดเป็นค่าตัวอย่างที่แก้ได้ใน engine.js: คุกกี้ดาวสูงสุด ${CONFIG.energyMax} / ค่าเข้า ${CONFIG.entryCost} / ฟื้น 1 ทุก ${CONFIG.refillMs/60000} นาที / เวลา ${CONFIG.duration} วินาที / ละอองใบไม้เริ่ม ${CONFIG.fluxInitial} สูงสุด ${CONFIG.fluxMax} ฟื้น +${CONFIG.fluxRegen} ต่อวินาที / รางวัลเหรียญ ${CONFIG.rewardCoins} และคุกกี้ดาว ${CONFIG.rewardCookies} รับได้หนึ่งครั้งต่อรอบที่ชนะ การพัก สลับโหมด และกดเริ่มซ้ำไม่เสียเพิ่ม`;
+document.querySelector('.energy-copy small').textContent=`ใช้เข้าด่านเท่านั้น · ครั้งละ ${CONFIG.entryCost} ชิ้น`;
+document.querySelector('.flux-panel small').textContent=`ฟื้น +${CONFIG.fluxRegen} ต่อวินาที`;
+$('replayBtn').textContent=`เล่นอีกครั้ง · คุกกี้ดาว ${CONFIG.entryCost} ชิ้น`;
+window.SideviewApp={snapshot:()=>({state:battle.state,mode:battle.mode,energy:bank.value,flux:battle.flux,time:battle.time,homeHP:battle.homeHP,enemyHP:battle.enemyHP,vehicleX:battle.vehicleX,baseDeployment:battle.baseDeployment,baseCannons:(battle.baseCannons||[]).map(c=>({...c})),travelProgress:battle.travelProgress,victoryPhase:battle.victoryPhase||null,victoryActors:(battle.victoryActors||[]).map(u=>({...u})),selectedRoster:[...battle.selectedRoster],claimed:battle.claimed,runId:battle.runId,allies:battle.allies.length,enemies:battle.enemies.length,progress:{...battle.progress},metrics:{...battle.metrics},saveBusy:actionPending,saveWritable:saves.writable,saveInitialized:saves.initialized,saveRevision:appliedRevision,ready}),version:'1.6.6',animationSnapshot:()=>({reduced,...animator.snapshot(),rig:window.SideviewAnimation.stats,frameCosts:[...frameCosts]}),renderSnapshot:()=>JSON.parse(JSON.stringify({version:'1.6.6',state:battle.state,runId:battle.runId,catalog:[...UNITS.map(u=>({...u,team:true})),...ENEMIES.map(u=>({...u,team:false}))].map(u=>({team:u.team,classId:u.classId,className:u.className,kind:u.kind,name:u.name,asset:u.asset,sourceFacing:artCatalog[u.asset]?.sourceFacing||1,profile:artCatalog[u.asset]?.profile,aspect:rigs.get(u.asset)?.aspect,rigKey:rigs.get(u.asset)?.id})),actors:renderedActors,bases:renderedBases,vehicleVisual:VEHICLE_VISUAL,backgroundLeftPatchWorld:430/1672*1200,projectiles:renderedProjectiles,victory:battle.victorySnapshot||null,vfx:vfx.snapshot()})),vfxSnapshot:()=>vfx.snapshot(),combatSnapshot:()=>JSON.parse(JSON.stringify({units:[...battle.allies,...battle.enemies],baseCannons:battle.baseCannons,projectiles:battle.projectiles,events:battle.events}))};
+saves.subscribe(snapshot=>{const coins=battle.progress.coins,rescued=battle.progress.rescued;applySaved(snapshot);if(battle.state==='won'&&(coins!==battle.progress.coins||rescued!==battle.progress.rescued))renderedState='';energy();sync()});
+const importSafe=()=>ready&&!actionPending&&window.SideviewTransfer.canImport(battle.state,battle.claimed);
+window.SideviewBridge={snapshot:window.SideviewApp.snapshot,safe:importSafe,refresh:sync,
+ exportSave:async()=>{await initialization;return saves.read()},
+ importSave:async(data,expectedRevision)=>{
+   if(!importSafe()||!window.SideviewPWA.canAct()||!saves.writable||!Number.isSafeInteger(expectedRevision))return false;
+   const clean=window.SideviewTransfer.parse(window.SideviewTransfer.create(data)).save;
+   actionPending=true;sync();let accepted=false;
+   try{
+     const receipt=await saves.mutate(draft=>{if(draft.revision!==expectedRevision)return false;accepted=true;return {...draft,...clean,revision:draft.revision}},{requireDurable:true});
+     if(!accepted||!receipt.committed)return false;applySaved(receipt.snapshot,true);battle.setRoster(receipt.snapshot.roster);renderedState='';return true;
+   }finally{actionPending=false;storageNote();energy();sync()}
+ }
+};
+mode();energy();sync();setInterval(energy,1000);requestAnimationFrame(frame);
+})();

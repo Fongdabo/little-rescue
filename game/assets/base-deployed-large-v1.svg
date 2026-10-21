@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420"><title>Little Rescue large camper base — deployed</title><desc>One original cream and leaf-green camper for the rescue team. Large crew cabin, usable boarding door, roof cargo, playful acorn support cannon. Faces right.</desc><metadata>{"originalNativeVector":true,"viewBox":[0,0,640,420],"door":{"centerX":192,"x":140.5,"y":174,"width":103,"height":139},"muzzle":{"x":320,"y":75,"facing":1},"groundY":375,"rearWheelCenterX":108.5,"rearWheelCenterY":336.5,"rearWheelRadius":36,"rearWheelOuterGround":375,"deployedAwningOffsetX":-130,"variant":"deployed","rootWorldMapping":{"width":500,"visualCenterOffsetX":120,"doorOffsetX":20},"sourceOriginalSHA256":"c4d915c64c22991db854b43f7e03e66372e9cb6a3f3fc924cd90917a87f1e52a"}</metadata>
+
+<g transform='translate(0 0) scale(1)'>
+<ellipse cx='325' cy='366.5' rx='252' ry='14.5' fill='#594832' fill-opacity='0.1176' stroke='' stroke-width='0'/>
+<ellipse cx='324' cy='365' rx='211' ry='8' fill='#594832' fill-opacity='0.1333' stroke='' stroke-width='0'/>
+<path d='M108 154 C82 154 67 175 68 202 C68 225 68 267 71 286 C73 306 86 316 110 317 C240 321 390 322 484 316 C514 313 544 307 562 298 C576 290 577 277 572 256 C568 238 565 219 553 202 C540 185 518 169 487 158 C394 144 210 143 108 154 Z' fill='#FFF0CC' stroke='#795438' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M486 159 C518 168 540 186 553 202 C565 219 568 238 572 256 C577 277 576 290 562 298 C544 307 514 313 484 316 C488 274 490 214 486 159 Z' fill='#E6CF9F' stroke='#B28A57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+<g id="roof-cargo" stroke-linecap="round" stroke-linejoin="round"><rect x="350" y="102" width="93" height="7" rx="3" fill="#b58850" stroke="#795438" stroke-width="3"/><rect x="356" y="78" width="42" height="25" rx="7" fill="#d9b77b" stroke="#957046" stroke-width="3"/><path d="M363 80v22m28-21v21" fill="none" stroke="#fff0cc" stroke-width="3"/><rect x="400" y="84" width="35" height="19" rx="8" fill="#a7d7dd" stroke="#6e895a" stroke-width="3"/><path d="M409 85v16m17-15v16" fill="none" stroke="#6e895a" stroke-width="3"/></g>
+<path d='M104 153 C107 129 126 108 157 106 C230 99 352 99 412 109 C441 114 463 133 472 158 C372 147 213 144 104 153 Z' fill='#99B57C' stroke='#6E895A' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M119 144 C139 117 173 113 203 113 C265 109 350 108 408 119' fill='none' stroke='#C8D69A' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/>
+<rect x='101' y='146' width='377' height='19' rx='9' fill='#B58850' stroke='#795438' stroke-width='3'/>
+<line x1='117' y1='150' x2='456' y2='150' stroke='#EDCA88' stroke-width='3' stroke-linecap='round'/>
+<path d='M171 107 C166 122 166 135 170 146' fill='none' stroke='#779360' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M384 108 C391 122 395 135 396 146' fill='none' stroke='#779360' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/>
+<g id="rear-window"><rect x="80" y="176" width="46" height="77" rx="12" fill="#81bed0" stroke="#8e6942" stroke-width="5"/><rect x="86" y="182" width="34" height="65" rx="8" fill="#a7d7dd"/><path d="M91 188h17m1 9-9 40" fill="none" stroke="#e7f5ea" stroke-width="4" stroke-linecap="round"/></g>
+<g id="crew-cabin"><rect x="273" y="176" width="112" height="77" rx="16" fill="#81bed0" stroke="#8e6942" stroke-width="5"/><rect x="280" y="182" width="98" height="64" rx="11" fill="#a7d7dd"/><path d="M288 188c24-5 43-4 61-1" fill="none" stroke="#e7f5ea" stroke-width="6" stroke-linecap="round"/><path d="M310 184v59m35-59v59" stroke="#8e6942" stroke-width="3"/><path d="M285 239v-12q10-8 20 0v12m10 0v-12q10-8 20 0v12m10 0v-12q10-8 20 0v12" fill="#efd29b" stroke="#957046" stroke-width="2"/></g>
+<rect x='402' y='176' width='76' height='73' rx='13' fill='#9FD3DD' stroke='#8E6942' stroke-width='5'/>
+<line x1='416' y1='184' x2='450' y2='184' stroke='#E7F5EA' stroke-width='5' stroke-linecap='round'/>
+<polygon points='492,176 532,195 548,217 553,244 493,239' fill='#7FB6C8' stroke='#8E6942' stroke-width='5' stroke-linejoin='round'/>
+<polygon points='499,185 528,199 541,217 542,225 499,216' fill='#BCE4E6' stroke='#BCE4E6' stroke-width='0' stroke-linejoin='round'/>
+<line x1='505' y1='185' x2='525' y2='195' stroke='#E7F5EA' stroke-width='4' stroke-linecap='round'/>
+<rect id='boarding-door' x='140.5' y='174' width='103' height='139' rx='13' fill='#E2C58D' stroke='#A37B49' stroke-width='4'/>
+<rect x='150.5' y='183' width='83' height='55' rx='11' fill='#A7D7DD' stroke='#957046' stroke-width='3'/>
+<line x1='159.5' y1='190' x2='196.5' y2='190' stroke='#E7F5EA' stroke-width='4' stroke-linecap='round'/>
+<rect x='217.5' y='253' width='15' height='8' rx='4' fill='#7E603C' stroke='' stroke-width='0'/>
+<path d='M75 272 C92 277 118 280 136 280' fill='none' stroke='#C29257' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M247 284 C326 289 422 287 486 281' fill='none' stroke='#C29257' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/>
+<line x1='90' y1='267' x2='125' y2='272' stroke='#E8BC7C' stroke-width='4' stroke-linecap='round'/>
+<line x1='260' y1='278' x2='472' y2='276' stroke='#E8BC7C' stroke-width='4' stroke-linecap='round'/>
+<polygon points='487,273 570,261 571,285 487,301' fill='#BD8B50' stroke='#BD8B50' stroke-width='1' stroke-linejoin='round'/>
+<line x1='495' y1='274' x2='563' y2='265' stroke='#EAC58A' stroke-width='3' stroke-linecap='round'/>
+<g transform='translate(192 271) scale(0.64)'>
+<path d='M-15 15 C-28 -9 -5 -25 20 -23 C25 3 7 27 -15 15 Z' fill='#7FA66A' stroke='#55774D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M-17 20 C-5 7 1 -3 12 -13' fill='none' stroke='#55774D' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/>
+</g>
+<ellipse cx='100' cy='283' rx='28' ry='23' fill='#F5E1AE' fill-opacity='1' stroke='#CEAD71' stroke-width='3'/>
+<g transform='translate(100 281) scale(0.54)'>
+<path d='M-15 15 C-28 -9 -5 -25 20 -23 C25 3 7 27 -15 15 Z' fill='#7FA66A' stroke='#55774D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M-17 20 C-5 7 1 -3 12 -13' fill='none' stroke='#55774D' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/>
+</g>
+<path d='M69 318 C71 293 89 282 108 283 C119 284 129 290 134 299' fill='none' stroke='#B18A56' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/>
+<path d='M410 318 C414 284 439 273 462 277 C488 281 503 300 505 314' fill='none' stroke='#B18A56' stroke-width='12' stroke-linecap='round' stroke-linejoin='round'/>
+<ellipse cx='108.5' cy='336.5' rx='36' ry='36' fill='#594C3D' fill-opacity='1' stroke='#765E43' stroke-width='5'/>
+<ellipse cx='108.5' cy='336.5' rx='25' ry='25' fill='#BA9864' fill-opacity='1' stroke='#E4C991' stroke-width='4'/>
+<ellipse cx='108.5' cy='336.5' rx='14' ry='14' fill='#E9D09B' fill-opacity='1' stroke='#8B6D47' stroke-width='3'/>
+<ellipse cx='108.5' cy='336.5' rx='5' ry='5' fill='#9B7B50' fill-opacity='1' stroke='' stroke-width='0'/>
+<ellipse cx='456' cy='331' rx='42' ry='42' fill='#594C3D' fill-opacity='1' stroke='#765E43' stroke-width='5'/>
+<ellipse cx='456' cy='331' rx='29' ry='29' fill='#BA9864' fill-opacity='1' stroke='#E4C991' stroke-width='4'/>
+<ellipse cx='456' cy='331' rx='17' ry='17' fill='#E9D09B' fill-opacity='1' stroke='#8B6D47' stroke-width='3'/>
+<ellipse cx='455.5' cy='330.5' rx='5.5' ry='5.5' fill='#9B7B50' fill-opacity='1' stroke='' stroke-width='0'/>
+<rect x='76' y='248' width='11' height='26' rx='5' fill='#DB8468' stroke='#A7724B' stroke-width='2'/>
+<ellipse cx='558' cy='266' rx='11' ry='13' fill='#FFF3BE' fill-opacity='1' stroke='#AD8652' stroke-width='3'/>
+<ellipse cx='556.5' cy='263' rx='4.5' ry='6' fill='#FFFBE7' fill-opacity='1' stroke='' stroke-width='0'/>
+<rect x='492' y='304' width='87' height='16' rx='7' fill='#9C7648' stroke='#795438' stroke-width='3'/>
+<line x1='502' y1='307' x2='568' y2='307' stroke='#DEBC7D' stroke-width='3' stroke-linecap='round'/>
+<line x1='487' y1='208' x2='500' y2='209' stroke='#886741' stroke-width='4' stroke-linecap='round'/>
+<rect x='498' y='202' width='15' height='21' rx='6' fill='#C9DDCF' stroke='#886741' stroke-width='3'/>
+<path d='M83 197 C84 183 88 174 98 171' fill='none' stroke='#FFF8E4' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/>
+<g id='door-platform-and-awning' transform='translate(-130 0)'>
+<polygon points='243,313 387,313 431,353 212,353' fill='#E5BD7B' stroke='#8F683C' stroke-width='4' stroke-linejoin='round'/>
+<polygon points='212,353 431,353 431,367 212,367' fill='#B58A53' stroke='#795438' stroke-width='4' stroke-linejoin='round'/>
+<polygon points='431,353 387,313 387,327 431,367' fill='#956D40' stroke='#795438' stroke-width='3' stroke-linejoin='round'/>
+<line x1='231' y1='348' x2='408' y2='348' stroke='#F7D99E' stroke-width='3' stroke-linecap='round'/>
+<line x1='253' y1='320' x2='238' y2='349' stroke='#B88B50' stroke-width='2' stroke-linecap='round'/>
+<line x1='295' y1='320' x2='289' y2='349' stroke='#B88B50' stroke-width='2' stroke-linecap='round'/>
+<line x1='338' y1='320' x2='345' y2='349' stroke='#B88B50' stroke-width='2' stroke-linecap='round'/>
+<polygon points='255,156 384,156 438,208 206,208' fill='#B6CD93' stroke='#6E895A' stroke-width='5' stroke-linejoin='round'/>
+<polygon points='255,156 283,156 264,208 220,208' fill='#D3DFAA' stroke='#D3DFAA' stroke-width='0' stroke-linejoin='round'/>
+<polygon points='339,156 363,156 406,208 365,208' fill='#D3DFAA' stroke='#D3DFAA' stroke-width='0' stroke-linejoin='round'/>
+<rect x='204' y='204' width='236' height='17' rx='7' fill='#8CA86B' stroke='#6E895A' stroke-width='3'/>
+<line x1='218' y1='222' x2='218' y2='349' stroke='#8D6B40' stroke-width='8' stroke-linecap='round'/>
+<line x1='427' y1='222' x2='427' y2='349' stroke='#8D6B40' stroke-width='8' stroke-linecap='round'/>
+<line x1='216' y1='225' x2='216' y2='343' stroke='#DEBE82' stroke-width='2' stroke-linecap='round'/>
+<line x1='425' y1='225' x2='425' y2='343' stroke='#DEBE82' stroke-width='2' stroke-linecap='round'/>
+<rect x='269' y='355' width='108' height='12' rx='4' fill='#CEAB71' stroke='#8F683C' stroke-width='2'/>
+</g>
+</g>
+
+<g id="support-cannon" data-muzzle-x="320" data-muzzle-y="75" stroke="#795438" stroke-linecap="round" stroke-linejoin="round">
+<ellipse cx="246" cy="107" rx="27" ry="8" fill="#b58850" stroke-width="3"/>
+<path d="M229 103 233 86 258 84 265 103Z" fill="#e6cf9f" stroke-width="3"/>
+<circle cx="247" cy="87" r="8" fill="#edca88" stroke-width="3"/>
+<circle cx="247" cy="87" r="3" fill="#fff5d9" stroke="none"/>
+<path d="M248 60C269 57 295 60 314 63L316 87C293 91 270 93 249 89Z" fill="#fff0cc" stroke-width="4"/>
+<path d="M258 64C276 62 294 64 305 66" fill="none" stroke="#fff9e8" stroke-width="4"/>
+<path d="M263 85C280 87 296 85 307 83" fill="none" stroke="#d6b879" stroke-width="3"/>
+<ellipse cx="250" cy="75" rx="18" ry="19" fill="#99b57c" stroke-width="4"/>
+<path d="M239 61C230 58 226 51 228 45 238 44 245 51 246 58" fill="#b6cd93" stroke-width="3"/>
+<path d="M248 57C246 48 252 42 259 42 264 48 260 55 253 59" fill="#c8d69a" stroke-width="3"/>
+<path d="m235 49 8 8m14-10-6 9" fill="none" stroke="#6e895a" stroke-width="2"/>
+<path d="M239 73C239 66 245 63 251 65" fill="none" stroke="#d7e3b3" stroke-width="4"/>
+<ellipse cx="309" cy="75" rx="7" ry="16" fill="#d8af64" stroke-width="3"/>
+<path d="M307 64v8" fill="none" stroke="#fff1bc" stroke-width="3"/>
+<path d="M309 61 320 62 320 88 309 89" fill="#e6cf9f" stroke-width="3"/>
+<ellipse cx="320" cy="75" rx="8" ry="13" fill="#99b57c" stroke-width="3"/>
+<ellipse id="support-muzzle" cx="320" cy="75" rx="4.5" ry="8.5" fill="#6fabb5" stroke="#4f7777" stroke-width="2"/>
+<path d="M319 69v5" fill="none" stroke="#def1df" stroke-width="2"/>
+</g>
+</svg>

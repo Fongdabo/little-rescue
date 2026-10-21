@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420"><title>Little Rescue acorn support cannon</title><desc>Identical original cartoon roof cannon from the large camper. Mirror as a complete group for an enemy emplacement. Opening attachment at source (320,75).</desc><metadata>{"originalNativeVector":true,"viewBox":[0,0,640,420],"muzzle":{"x":320,"y":75,"facing":1},"groupId":"support-cannon","groupIdenticalToVan":true}</metadata>
+<g id="support-cannon" data-muzzle-x="320" data-muzzle-y="75" stroke="#795438" stroke-linecap="round" stroke-linejoin="round">
+<ellipse cx="246" cy="107" rx="27" ry="8" fill="#b58850" stroke-width="3"/>
+<path d="M229 103 233 86 258 84 265 103Z" fill="#e6cf9f" stroke-width="3"/>
+<circle cx="247" cy="87" r="8" fill="#edca88" stroke-width="3"/>
+<circle cx="247" cy="87" r="3" fill="#fff5d9" stroke="none"/>
+<path d="M248 60C269 57 295 60 314 63L316 87C293 91 270 93 249 89Z" fill="#fff0cc" stroke-width="4"/>
+<path d="M258 64C276 62 294 64 305 66" fill="none" stroke="#fff9e8" stroke-width="4"/>
+<path d="M263 85C280 87 296 85 307 83" fill="none" stroke="#d6b879" stroke-width="3"/>
+<ellipse cx="250" cy="75" rx="18" ry="19" fill="#99b57c" stroke-width="4"/>
+<path d="M239 61C230 58 226 51 228 45 238 44 245 51 246 58" fill="#b6cd93" stroke-width="3"/>
+<path d="M248 57C246 48 252 42 259 42 264 48 260 55 253 59" fill="#c8d69a" stroke-width="3"/>
+<path d="m235 49 8 8m14-10-6 9" fill="none" stroke="#6e895a" stroke-width="2"/>
+<path d="M239 73C239 66 245 63 251 65" fill="none" stroke="#d7e3b3" stroke-width="4"/>
+<ellipse cx="309" cy="75" rx="7" ry="16" fill="#d8af64" stroke-width="3"/>
+<path d="M307 64v8" fill="none" stroke="#fff1bc" stroke-width="3"/>
+<path d="M309 61 320 62 320 88 309 89" fill="#e6cf9f" stroke-width="3"/>
+<ellipse cx="320" cy="75" rx="8" ry="13" fill="#99b57c" stroke-width="3"/>
+<ellipse id="support-muzzle" cx="320" cy="75" rx="4.5" ry="8.5" fill="#6fabb5" stroke="#4f7777" stroke-width="2"/>
+<path d="M319 69v5" fill="none" stroke="#def1df" stroke-width="2"/>
+</g>
+</svg>

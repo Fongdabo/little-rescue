@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "เพื่อนตัวจิ๋ว • Little Rescue",
+  "short_name": "Little Rescue",
+  "description": "ต้นแบบช่วยเพื่อนหนึ่งด่าน เล่นออฟไลน์หลังเตรียมไฟล์ครบ ไม่มีเงินจริง",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f1eee2",
+  "theme_color": "#386554",
+  "prefer_related_applications": false,
+  "icons": [
+    {"src":"icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"icons/maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ]
+}
