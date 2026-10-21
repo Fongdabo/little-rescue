@@ -44,7 +44,7 @@ export async function onRequestPost({ request, env }) {
     const insert = env.DB.prepare(`INSERT INTO events (day, at, test, pid, sid, build, age, kind, stage, result, why, secs, hp, cleared, app)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     await env.DB.batch(rows.map(e => insert.bind(day, now, test, body.pid, body.sid, build, age, e.kind,
-      int(e.stage, 0, 50), pick(e.result, ['won', 'lost']), pick(e.why, ['base', 'time']), int(e.secs, 0, 86400),
+      int(e.stage, 0, 50), pick(e.result, ['won', 'lost']), pick(e.why, ['base', 'time', 'quit']), int(e.secs, 0, 86400),
       int(e.hp, 0, 100), int(e.cleared, 0, 50), int(e.app, 0, 1))));
   } catch (error) { console.log('stats insert failed', String(error)); }
   return done;
@@ -83,6 +83,7 @@ export async function onRequestGet({ request, env }) {
     q(`SELECT stage, COUNT(DISTINCT CASE WHEN kind = 'start' THEN pid END) AS players,
          SUM(kind = 'start') AS plays, SUM(kind = 'end' AND result = 'won') AS wins, SUM(kind = 'end' AND result = 'lost') AS losses,
          SUM(kind = 'end' AND why = 'base') AS lost_base, SUM(kind = 'end' AND why = 'time') AS lost_time,
+         SUM(kind = 'end' AND why = 'quit') AS lost_quit,
          COUNT(DISTINCT CASE WHEN kind = 'end' AND result = 'won' THEN pid END) AS winners,
          SUM(kind = 'away') AS left_mid,
          CAST(AVG(CASE WHEN kind = 'end' AND result = 'won' THEN secs END) AS INTEGER) AS win_secs,
