@@ -5,3 +5,11 @@
   Content-Type: text/javascript; charset=utf-8
 /manifest.webmanifest
   Content-Type: application/manifest+json; charset=utf-8
+/admin
+  Cache-Control: no-store
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+/admin.html
+  Cache-Control: no-store
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer

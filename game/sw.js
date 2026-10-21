@@ -1,6 +1,6 @@
 /* Buildless, scope-isolated PWA. No game save is stored in this cache. */
 'use strict';
-const BUILD_ID='pwa-1.13.0';
+const BUILD_ID='pwa-1.16.0';
 const SCOPE=self.registration.scope;
 const PREFIX='little-rescue-pwa:'+SCOPE+':';
 const CACHE_NAME=PREFIX+BUILD_ID;
@@ -13,6 +13,8 @@ const PRECACHE=/* PRECACHE_START */[
   "cloud-save.js",
   "wallet.js",
   "cloud.css",
+  "live.css",
+  "live.js",
   "assets/background-clean-left-v1.png",
   "assets/background.webp",
   "assets/base-deployed-large-v1.svg",
@@ -81,6 +83,8 @@ const PRECACHE=/* PRECACHE_START */[
   "recover-v1123/index.html",
   "recover-v1130/",
   "recover-v1130/index.html",
+  "recover-v1160/",
+  "recover-v1160/index.html",
   "recover-v191/",
   "recover-v191/index.html",
   "recover-v1110/",

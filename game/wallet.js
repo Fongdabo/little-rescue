@@ -79,8 +79,9 @@
   }
   return true;
  }
- async function flush(){
-  const a=account();if(!a||!navigator.onLine)return;
+ // {fresh:true} reads the server wallet again now, e.g. after the server credited a gift (live.js).
+ async function flush({fresh=false}={}){
+  const a=account();if(!a||!navigator.onLine)return;if(fresh)lastGet=0;
   await checkHealth();if(!enabled)return;
   try{await withLock(()=>sendQueue(a.token))}catch{/* offline: the queue waits */}
   await reconcile();window.SideviewCloud?.paint?.();

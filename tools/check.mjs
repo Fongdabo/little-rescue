@@ -16,11 +16,12 @@ for (const f of readdirSync(GAME).filter(f => f.endsWith('.js'))) {
   catch (e) { fail(`${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
 
-// 1b. Cloudflare Pages Functions (play statistics endpoint) parse too
-const FUNCTIONS = new URL('../functions/api/', import.meta.url).pathname;
-for (const f of existsSync(FUNCTIONS) ? readdirSync(FUNCTIONS).filter(f => f.endsWith('.js')) : []) {
-  try { execFileSync(process.execPath, ['--check', join(FUNCTIONS, f)], { stdio: 'pipe' }); }
-  catch (e) { fail(`functions/api/${f} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
+// 1b. Cloudflare Pages Functions (stats, cloud save, gifts, admin) and their shared modules parse too
+const FUNCTIONS = new URL('../functions/', import.meta.url).pathname;
+const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.js') ? [join(dir, e.name)] : []);
+for (const f of existsSync(FUNCTIONS) ? walk(FUNCTIONS) : []) {
+  try { execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' }); }
+  catch (e) { fail(`${f.slice(FUNCTIONS.length - 10)} does not parse: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
 
 // 1c. the server wallet (functions/_lib) uses the same numbers as the game
@@ -80,7 +81,7 @@ for (const m of read('index.html').matchAll(/(?:href|src)="([^"#:]+)"/g)) {
 }
 
 // 4. saves players already have must keep loading
-const KEYS = ['little-rescue-sideview-save-v2', 'little-rescue-sideview-save-v1', 'little-rescue-meta-v1', 'little-rescue-daily-v1', 'little-rescue-cloud-v1', 'little-rescue-summon-v1', 'little-rescue-wallet-v1'];
+const KEYS = ['little-rescue-sideview-save-v2', 'little-rescue-sideview-save-v1', 'little-rescue-meta-v1', 'little-rescue-daily-v1', 'little-rescue-cloud-v1', 'little-rescue-summon-v1', 'little-rescue-wallet-v1', 'little-rescue-gifts-v1'];
 const all = readdirSync(GAME).filter(f => f.endsWith('.js')).map(read).join('\n');
 for (const k of KEYS) if (!all.includes(k)) fail(`save key ${k} disappeared from the scripts`);
 const manifest = JSON.parse(read('manifest.webmanifest'));
