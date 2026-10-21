@@ -76,10 +76,10 @@ $('f').addEventListener('submit',async e=>{
 function render(d){
  $('out').hidden=false;
  const ret=d.retention||{},tot=d.totals||{};
- const totalSecs=d.sessions.reduce((a,s)=>a+(s.total_secs||0),0),sessions=d.sessions.reduce((a,s)=>a+s.sessions,0);
+ const totalSecs=d.sessions.reduce((a,s)=>a+(s.total_secs||0),0),sessions=d.sessions.reduce((a,s)=>a+s.sessions,0),timed=d.sessions.reduce((a,s)=>a+(s.timed||0),0);
  const tiles=[
   [tot.players||0,`ผู้เล่น (${d.days} วัน)`],[ret.new_players||0,'ผู้เล่นใหม่'],
-  [sessions,'ครั้งที่เปิดเล่น'],[mins(sessions?Math.round(totalSecs/sessions):null),'เวลาเล่นเฉลี่ยต่อครั้ง'],
+  [sessions,'ครั้งที่เปิดเล่น'],[mins(timed?Math.round(totalSecs/timed):null),'เวลาเล่นเฉลี่ยต่อครั้ง'],
   [ret.d1_eligible?`${pct(ret.d1,ret.d1_eligible)}%`:'–','กลับมาวันถัดไป (D1)'],
   [ret.d7_eligible?`${pct(ret.d7,ret.d7_eligible)}%`:'–','กลับมาวันที่ 7 (D7)']];
  $('tiles').innerHTML=tiles.map(([v,l])=>`<div class="tile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
@@ -92,6 +92,7 @@ function render(d){
  const first=d.stages.find(s=>s.stage===0)?.players||0;
  $('stages').innerHTML='<tr><th>ด่าน</th><th>ผู้เล่นที่ลอง</th><th>ผ่านแล้ว</th><th>ไปถึง (เทียบด่าน 1)</th><th>รอบที่เล่น</th><th>อัตราชนะ</th><th class="barcell"></th><th>แพ้: ฐานแตก / หมดเวลา / กดออก</th><th>เหลือพลังศัตรูตอนแพ้</th><th>เวลาชนะเฉลี่ย</th><th>ปิดเกมกลางด่าน</th></tr>'+
   d.stages.map(s=>{const done=s.wins+s.losses,w=pct(s.wins,done);return `<tr><td>${stageName(s.stage)}</td><td>${s.players}</td><td>${s.winners}</td><td>${first?pct(s.players,first)+'%':'–'}</td><td>${s.plays}</td><td>${w??'–'}${w==null?'':'%'}</td><td class="barcell">${bar(w,w!=null&&w<40?'bad':w!=null&&w<60?'warn':'')}</td><td>${s.lost_base} / ${s.lost_time} / ${s.lost_quit??0}</td><td>${s.loss_enemy_hp==null?'–':s.loss_enemy_hp+'%'}</td><td>${mins(s.win_secs)}</td><td>${s.left_mid}</td></tr>`}).join('');
+ if(!d.stages.length)$('stages').innerHTML='<tr><td>ยังไม่มีใครเล่นด่านในช่วงนี้ สถิติด่านจะขึ้นหลังมีคนกดเริ่มภารกิจ</td></tr>';
  const players=d.furthest.reduce((a,x)=>a+x.players,0);
  $('furthest').innerHTML='<tr><th>ผ่านแล้ว</th><th>ผู้เล่น</th><th class="barcell"></th><th>เลิกเล่นแล้ว</th><th>ยังเล่นอยู่</th></tr>'+
   d.furthest.map(x=>{const label=x.cleared==null?'ยังไม่รู้':x.cleared===0?'ยังไม่ผ่านด่านไหน':x.cleared>=5?'ผ่านครบทุกด่าน':`ผ่าน ${x.cleared} ด่าน (ติดด่าน ${String(x.cleared+1).padStart(2,'0')})`;

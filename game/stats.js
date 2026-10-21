@@ -63,7 +63,8 @@
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hidden(lastBattle);else visibleSince=performance.now()});
  addEventListener('pagehide',()=>{if(!document.hidden)hidden(lastBattle)});
  addEventListener('online',flush);
- setInterval(flush,60000);
+ // While the game stays open, report play time every 2 minutes so a session counts even if it never hides.
+ setInterval(()=>{if(!document.hidden&&!state.off)add('active',{secs:seconds()});flush()},120000);
  const toggle=document.getElementById('statsToggle');
  if(toggle){toggle.checked=!state.off;toggle.addEventListener('change',()=>{window.SideviewStats.enabled=toggle.checked})}
  window.SideviewStats={
